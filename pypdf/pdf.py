@@ -755,47 +755,64 @@ class PdfFileWriter(object):
 
         return outline
 
-    def getNamedDestRoot(self):
-        if '/Names' in self._rootObject and \
-                isinstance(self._rootObject['/Names'], DictionaryObject):
-            names = self._rootObject['/Names']
-            idnum = self._objects.index(names) + 1
-            namesRef = IndirectObject(idnum, 0, self)
+    
+    #Copied from Reader
+    def _buildDestination(self, title, array):
+        return Destination(title, array[0], array[1], *array[2:])
 
-            assert namesRef.getObject() == names
+    def getNamedDestinations(self, tree=None, retval=None):
+        """
+        Retrieves the named destinations present in the document.
 
-            if '/Dests' in names and \
-                    isinstance(names['/Dests'], DictionaryObject):
-                dests = names['/Dests']
-                idnum = self._objects.index(dests) + 1
-                destsRef = IndirectObject(idnum, 0, self)
+        :return: a dictionary which maps names to
+            :class:`Destinations<pypdf.generic.Destination>`.
+        :rtype: dict
+        """
+        if retval is None:
+            retval = {}
+            catalog = self._rootObject
 
-                assert destsRef.getObject() == dests
+            # get the name tree
+            if "/Dests" in catalog:
+                tree = catalog["/Dests"]
+            elif "/Names" in catalog:
+                names = catalog['/Names']
+                if "/Dests" in names:
+                    tree = names['/Dests']
 
-                if '/Names' in dests:
-                    nd = dests['/Names']
-                else:
-                    nd = ArrayObject()
-                    dests[NameObject('/Names')] = nd
-            else:
-                dests = DictionaryObject()
-                destsRef = self._addObject(dests)
-                names[NameObject('/Dests')] = destsRef
-                nd = ArrayObject()
-                dests[NameObject('/Names')] = nd
+        if tree is None:
+            return retval
 
-        else:
-            names = DictionaryObject()
-            namesRef = self._addObject(names)
-            self._rootObject[NameObject('/Names')] = namesRef
-            dests = DictionaryObject()
-            destsRef = self._addObject(dests)
-            names[NameObject('/Dests')] = destsRef
-            nd = ArrayObject()
-            dests[NameObject('/Names')] = nd
+        if "/Kids" in tree:
+            # recurse down the tree
+            for kid in tree["/Kids"]:
+                self.getNamedDestinations(kid.getObject(), retval)
 
-        return nd
+        elif "/Names" in tree: #ppZZ if => elif
+            names = tree["/Names"]
+            for i in range(0, len(names), 2):
+                key = names[i].getObject()
+                val = names[i+1].getObject()
 
+                if isinstance(val, DictionaryObject) and '/D' in val:
+                    val = val['/D']
+
+                dest = self._buildDestination(key, val)
+                if dest is not None:
+                    retval[key] = dest
+        else:  # case where Dests is in root catalog
+            for k,v in tree.items():
+                val=v.getObject()
+                if isinstance(val, DictionaryObject) and '/D' in val:
+                    val = val['/D']
+                dest = self._buildDestination(k,val)
+                if dest != None:
+                    retval[k] = dest
+
+        return retval
+
+
+    #bookmarks are added in 
     def addBookmarkDestination(self, dest, parent=None):
         destRef = self._addObject(dest)
 
@@ -836,8 +853,7 @@ class PdfFileWriter(object):
 
     def addBookmark(
             self, title, pagenum, parent=None, color=None, bold=False,
-            italic=False, fit='/Fit', *args
-    ):
+            italic=False, fit='/Fit', *args):
         """
         Add a bookmark to this PDF file.
 
@@ -852,7 +868,7 @@ class PdfFileWriter(object):
         :param str fit: The fit of the destination page. See
             :meth:`addLink()<addLink>` for details.
         """
-        pageRef = self.getObject(self._pages)['/Kids'][pagenum]
+        pageRef = self.getPage(pagenum,True)
         action = DictionaryObject()
         zoomArgs = []
 
@@ -901,28 +917,224 @@ class PdfFileWriter(object):
 
         return bookmarkRef
 
-    def addNamedDestinationObject(self, dest):
-        destRef = self._addObject(dest)
+    def addNamedDestinationObject(self, dest,title=None):
+        def _getMinMaxKey(node,_min=True):
+            if "/Names" in node:
+                return node["/Names"][0 if _min else -2]
+            elif "/Kids" in node:
+                return _getMinMaxKey(node["/Kids"][0 if _min else -1].getObject(),_min)
+            else:
+                raise Exception("_getMinMaxKey abnormal")
+            
+        def _insertNamedDest(title,dest,node,force=0):
+            if "/Limits" in node:
+                mi,ma=node['/Limits'][0:2]
+            elif ("/Kids" in node and len(node["/Kids"]) == 0) :
+                raise Exception("Kids list empty ???")
+            elif ("/Names" in node and len(node["/Names"]) == 0):
+                title=TextStringObject(title)
+                node['/Names'].append(title)
+                node['/Names'].append(dest)
+                node.update({NameObject('/Limits'):ArrayObject([title,title])})
+                return node['/Limits']
+            else:  #there is some data but no Limits(it should not exists
+                mi=_getMinMaxKey(node,True)   
+                ma=_getMinMaxKey(node,False)
+                    
+            if "/Names" in node:  #it is a list of names
+                if title<ma or force != 0:
+                    if force == -1:
+                        i=0
+                    else:
+                        for i in range(len(node['/Names'])//2):
+                            if title<node['/Names'][i*2]:
+                                break
+                    title=TextStringObject(title)
+                    if force == +1:
+                        node['/Names'].append(title)
+                        node['/Names'].append(dest)
+                    else:
+                        node['/Names'].insert(i*2,dest)
+                        node['/Names'].insert(i*2,title)
+                    if '/Limits' not in node:
+                        node.update({ NameObject('/Limits'):ArrayObject([title,title]) })
+                    if title<node['/Limits'][0]:
+                        node['/Limits'][0]=title
+                    if title>node['/Limits'][1]:
+                        node['/Limits'][1]=title
+                    return node['/Limits']
+                else:
+                    return None
+            elif "/Kids" in node:     #need to process one level down
+                if force == 1:
+                    lim=_insertNamedDest(title,dest,node['/Kids'][-1].getObject(),+1)
+                    if '/Limits' not in node: node.update({ NameObject('/Limits') : ArrayObject([ mi, lim[1] ]) })
+                    node['/Limits'][1]=lim[1]
+                    return node['/Limits']
+                elif title<mi or force == -1:
+                    lim=_insertNamedDest(title,dest,node['/Kids'][0].getObject(),-1)
+                    if '/Limits' not in node: node.update({ NameObject('/Limits') : ArrayObject([ lim[0], ma ]) })
+                    node['/Limits'][0]=lim[0]
+                    return node['/Limits']
+                elif title<ma:
+                    for k in node['/Kids']:
+                        lim=_insertNamedDest(title,dest,k.getObject())
+                        if lim is None: continue
+                        if lim[0]<mi:
+                            node['/Limits'][0]=TextStringObject(mi)
+                        if ma<lim[1]:
+                            node['/Limits'][1]=TextStringObject(ma)
+                        return node['/Limits']
+                    raise Exception('no Kids Found ????')
+                else:
+                    return None
 
-        nd = self.getNamedDestRoot()
-        nd.extend([dest['/Title'], destRef])
+        if title is None:
+            if '/Title' in dest:
+                title=dest['/Title']
+            else:
+                title='_'+''.join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",k=10))
 
-        return destRef
+        assert title not in self.getNamedDestinations(),"Named Destination '%s' already defined"%(title,)
 
-    def addNamedDestination(self, title, pagenum):
-        pageRef = self.getObject(self._pages)['/Kids'][pagenum]
+        try:
+            dests = self._rootObject.rawGet('/Dests').getObject()
+        except:
+            dests = None
+        if dests: assert isinstance(dests, DictionaryObject),"Dests in Root Catalog not a dictionnary"
+
+        try:
+            dests2 = self._rootObject['/Names'].rawGet('/Dests').getObject()
+        except:
+            dests2 = None
+
+        if dests is not None and dests2 is not None:
+            raise PdfStreamError("/Dest exists both in Root catalog and in Names section")
+
+        if dests is None and dests2 is None:
+            #TODO : we are currently using the PDF 1.1 solution to simplify implementation
+            dests = DictionaryObject()
+            self._rootObject.update({NameObject("/Dests"):self._addObject(dests)})
+
+        if isinstance(dest,IndirectObject):
+            destRef = self._addObject(dest)
+        else:
+            destRef = dest
+
+
+        if dests:
+            dests.update({NameObject(title):destRef})
+            return title,destRef
+
+        if dests2:
+            assert (isinstance(dests2, DictionaryObject) and ("/Kids" in dests2 or "/Names" in dests2 )),"Dests in Names not a names tree"
+            lim=_insertNamedDest(title,destRef,dests2)
+            if lim is None:
+                lim=_insertNamedDest(title,destRef,dests2,+1)  # we force object to be created at the end of the list
+            return title,destRef
+
+    def addNamedDestination(self, title, pagenum,top=None,left=None,zoom=0.0):
+        pageRef = self.getPage(pagenum,ref=True)
         dest = DictionaryObject()
+        try:
+            if top<=1.0:
+                top=float(pageRef.getObject()['/MediaBox'][3])*(1-top)
+        except:
+            pass
+        try:
+            if left<=1.0:  #top est en % de la page
+                left=float(pageRef.getObject()['/MediaBox'][2])*(left)
+        except:
+            pass
+
+        if top is None and left is None:
+            d=ArrayObject([pageRef, NameObject('/Fit')])
+        elif left is None:
+            d=ArrayObject([pageRef, NameObject('/FitH'),
+                           NumberObject(top)])
+        else:
+            d=ArrayObject([pageRef, NameObject('/XYZ'),
+                           NumberObject(left), NumberObject(top),
+                           NumberObject(zoom)])
+
         dest.update({
-            NameObject('/D'):
-                ArrayObject([pageRef, NameObject('/FitH'), NumberObject(826)]),
+            NameObject('/D'): d,
             NameObject('/S'): NameObject('/GoTo')
         })
 
-        destRef = self._addObject(dest)
-        nd = self.getNamedDestRoot()
-        nd.extend([title, destRef])
+        return self.addNamedDestinationObject(dest,title)
 
-        return destRef
+    def delNamedDestination(self, title):
+        def _getMinMaxKey(node,_min=True):
+            if "/Names" in node:
+                return node["/Names"][0 if _min else -2]
+            elif "/Kids" in node:
+                return _getMinMaxKey(node["/Kids"][0 if _min else -1].getObject(),_min)
+            else:
+                raise Exception("_getMinMaxKey abnormal")
+            
+        def _delNamedDest(title,node,top=True):
+            if "/Limits" in node:
+                mi,ma=node['/Limits'][0:2]
+            elif ("/Kids" in node and len(node["/Kids"]) == 0) :
+                try:
+                    del node["/Kids"]
+                except:
+                    pass
+                try:
+                    del node["/Limits"]
+                except:
+                    pass
+                node.update({NameObject("/Names"):ArrayObject()})
+                return False
+            elif ("/Names" in node and len(node["/Names"]) == 0):
+                try:
+                    del node["/Limits"]
+                except:
+                    pass
+                return False
+            else:
+                mi=_getMinMaxKey(node,True)   # for tests...
+                ma=_getMinMaxKey(node,False)   # for tests...
+                    
+            if "/Names" in node:  #it is a list of names
+                if mi<=title<=ma:
+                    for i in range(len(node['/Names'])//2):
+                        if title==node['/Names'][i*2]:
+                            del node['/Names'][i*2+1]
+                            del node['/Names'][i*2]
+                            if len(node['/Names'])==0:
+                                del node["/Limits"]
+                            else:
+                                node["/Limits"][0]=node["/Names"][0]
+                                node["/Limits"][1]=node["/Names"][-2]
+                            return len(node['/Names'])//2
+                    return -1 # nothing has not been found but it should have been there
+                else:
+                    return -2 # not within the range
+            elif "/Kids" in node:     #need to process one level down
+                if mi<=title<=ma:
+                    for i,k in enumerate(node['/Kids']):
+                        ret=_delNamedDest(title,k.getObject(),False)
+                        if ret == -2:
+                            continue
+                        if ret == -1:
+                            return -1
+                        if ret==0:
+                            del node['/Kids'][i]
+                            if len(node['/Kids'])==0:
+                                del node['/Limits']
+                                if top:  #no empty kids at root
+                                    del node['/Kids']
+                                    node.update({NameObject("/Names"):ArrayObject()})
+                                return 0
+                        node['/Limits'][0]=_getMinMaxKey(node,True)
+                        node['/Limits'][1]=_getMinMaxKey(node,False)
+                        return len(node['/Kids'])
+                else:
+                    return -2
+            else:
+                raise Exception('no Kids nor name Found ????')
 
     def removeLinks(self):
         """
@@ -1789,7 +2001,7 @@ class PdfFileReader(object):
             for kid in tree["/Kids"]:
                 self.getNamedDestinations(kid.getObject(), retval)
 
-        if "/Names" in tree:
+        elif "/Names" in tree: #ppZZ if => elif
             names = tree["/Names"]
             for i in range(0, len(names), 2):
                 key = names[i].getObject()
@@ -1801,6 +2013,12 @@ class PdfFileReader(object):
                 dest = self._buildDestination(key, val)
                 if dest is not None:
                     retval[key] = dest
+        else:  # case where Dests is in root catalog
+            for k,v in tree.items():
+                val=v.getObject()
+                dest = self._buildDestination(k,val)
+                if dest != None:
+                    retval[k] = dest
 
         return retval
 
@@ -1925,6 +2143,19 @@ class PdfFileReader(object):
                 outline[NameObject("/Title")] = title
             else:
                 raise PdfReadError("Unexpected destination %r" % dest)
+
+        #ppZZ : add parent
+        outline.parent=None
+        if "/Parent" in node:
+            p=node["/Parent"].getObject()
+            try:
+                if "/Type" in p and p["/Type"] == '/Outlines':
+                    outline.parent=None
+                elif "/Title" in p and p["/Title"] != '':
+                    outline.parent=node["/Parent"]
+            except:
+                pass
+
         return outline
 
     pages = property(

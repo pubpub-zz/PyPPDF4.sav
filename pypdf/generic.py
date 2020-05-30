@@ -2184,6 +2184,7 @@ class Destination(TreeObject):
         self[NameObject("/Title")] = title
         self[NameObject("/Page")] = page
         self[NameObject("/Type")] = typ
+        self.parent=None #PPzz
 
         # from table 8.2 of the PDF 1.7 reference.
         if typ == "/XYZ":
