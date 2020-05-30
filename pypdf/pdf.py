@@ -736,6 +736,10 @@ class PdfFileWriter(object):
 
         return ref
 
+    def getIndirectObject(self, idnum): #ppZZ
+        ref = IndirectObject(idnum, 0, self)
+        return ref
+
     def getOutlineRoot(self):
         if '/Outlines' in self._rootObject:
             outline = self._rootObject['/Outlines']
@@ -1506,6 +1510,9 @@ class PdfFileReader(object):
             )
 
         self._parsePdfFile(self._stream)
+        # for homogeneity with Writer
+        self._root=self._trailer.rawGet("/Root")
+        self._rootObject=self._root.getObject()
 
     def __repr__(self):
         return "<%s.%s isClosed=%s, _filepath=%s, _stream=%s, strict=%s, " \
@@ -1595,7 +1602,7 @@ class PdfFileReader(object):
         """
         try:
             self._overrideEncryption = True
-            return self._trailer["/Root"].getXmpMetadata()
+            return self._rootObject.getXmpMetadata()
         finally:
             self._overrideEncryption = False
 
@@ -1617,7 +1624,7 @@ class PdfFileReader(object):
                 self._overrideEncryption = True
                 self.decrypt('')
 
-                return self._trailer["/Root"]["/Pages"]["/Count"]
+                return self._rootObject["/Pages"]["/Count"]
             except Exception:
                 raise PdfReadError("File has not been decrypted")
             finally:
@@ -1665,7 +1672,7 @@ class PdfFileReader(object):
 
         if retval is None:
             retval = {}
-            catalog = self._trailer["/Root"]
+            catalog = self._rootObject
 
             # Get the AcroForm tree
             if "/AcroForm" in catalog:
@@ -1764,7 +1771,7 @@ class PdfFileReader(object):
         """
         if retval is None:
             retval = {}
-            catalog = self._trailer["/Root"]
+            catalog = self._rootObject
 
             # get the name tree
             if "/Dests" in catalog:
@@ -1806,7 +1813,7 @@ class PdfFileReader(object):
         """
         if outlines is None:
             outlines = []
-            catalog = self._trailer["/Root"]
+            catalog = self._rootObject
 
             # get the outline dictionary and named destinations
             if "/Outlines" in catalog:
@@ -2015,7 +2022,7 @@ class PdfFileReader(object):
             inherit = dict()
         if pages is None:
             self._flattenedPages = []
-            catalog = self._trailer["/Root"].getObject()
+            catalog = self._rootObject
             pages = catalog["/Pages"].getObject()
 
         t = "/Pages"
@@ -2832,6 +2839,12 @@ class PdfFileReader(object):
     @property
     def isEncrypted(self):
         return "/Encrypt" in self._trailer
+
+    def getIndirectObject(self, idnum): #ppZZ
+        ref = IndirectObject(idnum, 0, self)
+        return ref
+
+
 
 
 def _convertToInt(d, size):
