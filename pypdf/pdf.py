@@ -1222,17 +1222,84 @@ class PdfFileWriter(object):
             else:
                 raise Exception('no Kids nor name Found ????')
 
+        assert title is not None
+
+        try:
+            dests = self._rootObject.rawGet('/Dests').getObject()
+        except:
+            dests = None
+        if dests: assert isinstance(dests, DictionaryObject),"Dests in Root Catalog not a dictionnary"
+
+        try:
+            dests2 = self._rootObject['/Names'].rawGet('/Dests').getObject()
+        except:
+            dests2 = None
+
+        if dests is not None and dests2 is not None:
+            raise PdfStreamError("/Dest exists both in Root catalog and in Names section")
+
+        if dests is None and dests2 is None:
+            #TODO : we are currently using the PDF 1.1 solution to simplify implementation
+            dests = DictionaryObject()
+            self._rootObject.update({NameObject("/Dests"):self._addObject(dests)})
+
+        if dests:
+            for k in dests:
+                if title == k:
+                    del dests[k]            
+                    return True
+            return False
+
+        if dests2:
+            assert (isinstance(dests2, DictionaryObject) and ("/Kids" in dests2)),"Dests in Names not a names tree"
+            return _delNamedDest(title,dests2)>=0
+
+    def removeAnnots(self,pageSet=None,links=False,comments=False,attachments=False,prints=False,_3D=False):
+        """
+        Removes different annotations from this output.
+        """
+        if pageSet is None:
+            pageSet=range(self.numPages)
+            
+        #if all are false, for compatibility, they should be all deleted
+        if not(links or comments or attachments or prints or _3D):
+            links=True
+            comments=True
+            attachments=True
+            prints=True
+            _3D=True
+        subTypes=[]
+        if links:
+            subTypes.extend(['/Link',])
+        if comments:
+            subTypes.extend(['/Text','/FreeText','/Line','/Square','/Circle','/Polygon','/PolyLine',\
+                             '/Highlight','/Underline','/Squiggly','/StrikeOut','/Stamp','/Caret',\
+                             '/Ink','/Popup',])
+        if attachments:
+            subTypes.extend(['/FileAttachment','/Sound','/Movie','/Widget','/Screen',])
+        if prints:
+            subTypes.extend(['/PrinterMark','/TrapNet','/Watermark',])
+        if _3D:
+            subTypes.extend(['/3D'])
+
+        for i in pageSet:
+            page = self.getPage(i)
+            if "/Annots" in page:
+                ik=0
+                while ik<len(page['/Annots']):
+                    k=page['/Annots'][ik].getObject()
+                    if k['/Subtype'] in subTypes:
+                            del page['/Annots'][ik]
+                    else:
+                        ik=ik+1
+                if len(page['/Annots'])==0:
+                    del page['/Annots']
+
     def removeLinks(self):
         """
-        Removes links and annotations from this output.
+        Removes All annotations from all pages. Kept for compatibility with old api
         """
-        pages = self.getObject(self._pages)['/Kids']
-
-        for page in pages:
-            pageRef = self.getObject(page)
-
-            if "/Annots" in pageRef:
-                del pageRef['/Annots']
+        self.removeAnnots();
 
     def removeImages(self, ignoreByteStringObject=False):
         """
