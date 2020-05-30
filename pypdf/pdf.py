@@ -62,7 +62,7 @@ __maintainer_email = "PyPDF4@phaseit.net"
 
 
 class PdfFileWriter(object):
-    def __init__(self, stream, debug=False):
+    def __init__(self, stream=None, pdfReaderAsSource=None,debug=False):
         """
         This class supports writing PDF files out, given pages produced by
         another class (typically :class:`PdfFileReader<PdfFileReader>`).
@@ -70,6 +70,8 @@ class PdfFileWriter(object):
         :param stream: File-like object or path to a PDF file in ``str``
             format. If of the former type, the object must support the
             ``write()`` and the ``tell()`` methods.
+        :para pdfReaderAsSource: pdfFileReader object :
+            if passed, it is cloned into the writer
         :param bool debug: Whether this class should emit debug informations
             (recommended for development). Defaults to False.
         """
@@ -88,6 +90,10 @@ class PdfFileWriter(object):
                 "File <%s> to write to is not in binary mode. It may not be "
                 "written to correctly." % self._stream.name
             )
+
+        if isinstance(pdfReaderAsSource,PdfFileReader):
+            self.clone(pdfReaderAsSource)
+            return
 
         # The root of our page tree node.
         pages = DictionaryObject()
@@ -156,6 +162,14 @@ class PdfFileWriter(object):
             been closed, ``False`` otherwise.
         """
         return not bool(self._stream) or self._stream.closed
+
+    def clone(self,pdfR): #ppZZ
+        self._IdTranslated={}
+        tr=pdfR._trailer.clone(self)
+        self._pages=tr['/Root'].rawGet('/Pages')
+        self._info=tr.rawGet('/Info')
+        self._rootObject=tr['/Root']
+        self._root=tr.rawGet('/Root')
 
     def _addObject(self, obj):
         self._objects.append(obj)
@@ -408,7 +422,8 @@ class PdfFileWriter(object):
 
         # Copy pages from reader to writer
         for rpagenum in range(readerNumPages):
-            self.addPage(reader.getPage(rpagenum))
+            readerPage = reader.getPage(rpagenum)
+            self.addPage(readerPage.clone(self))
             writerPage = self.getPage(writerNumPages + rpagenum)
 
             # Trigger callback, pass writer page as parameter
@@ -454,8 +469,11 @@ class PdfFileWriter(object):
             page is appended to the writer. Takes as a single argument a
             reference to the page appended.
         """
-        self.cloneReaderDocumentRoot(reader)
-        self.appendPagesFromReader(reader, afterPageAppend)
+        #self.cloneReaderDocumentRoot(reader)
+        #self.appendPagesFromReader(reader, afterPageAppend)
+        self.clone(reader)
+        for i in range(self.numPages):  # it is no exactly after each append, but the way things are done,...
+            afterPageAppend(self.getPage(i))
 
     def encrypt(self, userPwd, ownerPwd=None, use128Bits=True):
         """

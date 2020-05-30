@@ -99,6 +99,10 @@ class PdfObject(object):
         """Resolves indirect references."""
         return self
 
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        raise Exception("clone PdfObject")
+        return self
 
 # TO-DO Add __repr_() implementations to the *Object classes
 class NullObject(PdfObject):
@@ -115,9 +119,18 @@ class NullObject(PdfObject):
         return NullObject()
 
 
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        return NullObject()
+
+
 class BooleanObject(PdfObject):
     def __init__(self, value):
         self.value = value
+
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        return BooleanObject(self.value)
 
     def writeToStream(self, stream, encryption_key):
         if self.value:
@@ -140,6 +153,17 @@ class BooleanObject(PdfObject):
 
 
 class ArrayObject(list, PdfObject):
+
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        arr = ArrayObject()
+        for data in self:
+            if 'clone' in dir(data):
+                arr.append(data.clone(pdfD))
+            else:
+                arr.append(data)
+        return arr
+
     def writeToStream(self, stream, encryption_key):
         stream.write(b_("["))
 
@@ -196,6 +220,22 @@ class IndirectObject(PdfObject):
         self.idnum = idnum
         self.generation = generation
         self.pdf = pdf
+
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        try: pdfD._IdTranslated
+        except:
+            pdfD._IdTranslated={}
+        try:
+            n=pdfD._IdTranslated[self.idnum]
+        except:
+            n=len(pdfD._objects)+1
+            pdfD._IdTranslated[self.idnum]=n
+            pdfD._objects.append("%d NotInit"%n)
+            o=self.getObject().clone(pdfD)
+            pdfD._objects[n-1]=o
+
+        return IndirectObject(n,0,pdfD)
 
     def getObject(self):
         return self.pdf.getObject(self).getObject()
@@ -266,6 +306,10 @@ class FloatObject(decimal.Decimal, PdfObject):
         except:
             return decimal.Decimal.__new__(cls, str(value))
 
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        return FloatObject(self.asNumeric())
+
     def __repr__(self):
         if self == self.to_integral():
             return str(self.quantize(decimal.Decimal(1)))
@@ -294,6 +338,10 @@ class NumberObject(int, PdfObject):
             return int.__new__(cls, val)
         except OverflowError:
             return int.__new__(cls, 0)
+
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        return NumberObject(self.asNumeric())
 
     def asNumeric(self):
         return int(b_(repr(self)))
@@ -445,6 +493,10 @@ class ByteStringObject(bytes_type, PdfObject):
     # returns self.
     original_bytes = property(lambda self: self)
 
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        return ByteStringObject(self)
+
     def writeToStream(self, stream, encryption_key):
         bytearr = self
 
@@ -471,6 +523,10 @@ class TextStringObject(string_type, PdfObject):
     # if that occurs, this "original_bytes" property can be used to
     # back-calculate what the original encoded bytes were.
     original_bytes = property(lambda self: self.getOriginalBytes())
+
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        return createStringObject(self)
 
     def getOriginalBytes(self):
         # We're a text string object, but the library is trying to get our raw
@@ -514,6 +570,10 @@ class NameObject(str, PdfObject):
     delimiterPattern = re.compile(b_(r"\s+|[\(\)<>\[\]{}/%]"))
     surfix = b_("/")
 
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        return NameObject(self)
+
     def writeToStream(self, stream, encryption_key):
         stream.write(b_(self))
 
@@ -550,6 +610,15 @@ class NameObject(str, PdfObject):
 
 
 class DictionaryObject(dict, PdfObject):
+
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        d=DictionaryObject()
+        for k,v in self.items():
+             d.update({(k.clone(k) if 'clone' in dir(k) else k):
+                               (v.clone(pdfD) if 'clone' in dir(v) else v) })
+        return d
+
     def rawGet(self, key):
         return dict.__getitem__(self, key)
 
@@ -735,7 +804,15 @@ class DictionaryObject(dict, PdfObject):
 
 class TreeObject(DictionaryObject):
     def __init__(self):
-        DictionaryObject.__init__()
+        DictionaryObject.__init__(self)
+
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        raise Exception("clone TreeObject",self)
+        obj=TreeObject()
+        for k,v in self.items():
+                obj.addChild(v.clone(pdfD),pdfD)
+        return obj
 
     def hasChildren(self):
         return '/First' in self
@@ -875,6 +952,14 @@ class StreamObject(DictionaryObject):
         super(StreamObject, self).__init__()
         self._data = None
         self.decodedSelf = None
+
+    def clone(self,pdfD):  #PPzz
+        """ clone object into pdfD """
+        st=self.__class__()
+        st._data=self._data
+        st.decodedSelf=self.decodedSelf
+        st.update(self)
+        return self
 
     def writeToStream(self, stream, encryption_key):
         self[NameObject("/Length")] = NumberObject(len(self._data))
