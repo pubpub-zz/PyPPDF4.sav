@@ -1,4 +1,3 @@
-# -*- coding: UTF-8 -*-
 # vim: sw=4:expandtab:foldmethod=marker
 #
 # Copyright (c) 2006, Mathieu Fenniak
@@ -194,7 +193,7 @@ class FlateCodec(object):
 
                     prev_rowdata = rowdata
 
-                    for d in rowdata:
+                    for d in rowdata[1:]: ##ppZZ ???? err in latest version
                         if version_info < (3, 0):
                             output.write(chr(d))
                         else:

@@ -2254,8 +2254,10 @@ class PdfFileReader(object):
 
                 if "/XRefStm" in newTrailer:
                     startxref = newTrailer["/XRefStm"]
+                    del self._trailer["/XRefStm"] #to ensure there will be no loops
                 elif "/Prev" in newTrailer:
                     startxref = newTrailer["/Prev"]
+                    del self._trailer["/Prev"] #to ensure there will be no loops
                 else:
                     break
             elif x.isdigit():   # PDF 1.5+ Cross-Reference Stream
@@ -2342,14 +2344,16 @@ class PdfFileReader(object):
                         1, xrefstreamOffset, xrefstmGen
                     )
 
-                trailerKeys = ("/Root", "/Encrypt", "/Info", "/ID")
+                trailerKeys = ("/Root", "/Encrypt", "/Info", "/ID","/Prev")
 
                 for key in trailerKeys:
                     if key in xrefstream and key not in self._trailer:
                         self._trailer[NameObject(key)] = xrefstream.rawGet(key)
 
-                if "/Prev" in xrefstream:
-                    startxref = xrefstream["/Prev"]
+                #based on other software, the Previous Prev shall also be processed...
+                if "/Prev" in self._trailer:  ##ppZZ  : /Prev was collected/updated before
+                    startxref = self._trailer["/Prev"]
+                    del self._trailer["/Prev"] #to ensure there will be no loops
                 else:
                     break
             else:
