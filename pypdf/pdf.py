@@ -509,10 +509,31 @@ class PdfFileWriter(object):
         self._encrypt = self._addObject(encrypt)
         self._encrypt_key = key
 
-    def write(self):
+    def write(self, stream=None):
         """
         Writes the collection of pages added to this object out as a PDF file.
+
+        :param stream: An object to write the file to.  The object must support
+            the write method and the tell method, similar to a file object.
+            if empty use the parameter passed through __init__
         """
+        if isinstance(stream,str): #ppZZ
+            with open(stream,'wb') as f:
+                self.write(f)
+            return
+        
+        if hasattr(stream, 'mode') and 'b' not in stream.mode:
+            warnings.warn("File <%s> to write to is not in binary mode. It may not be written to correctly." % stream.name)
+ 
+        if stream is not None:
+            savedStream=self._stream
+            self._stream=stream
+            try:
+                self.write()
+            finally:
+                self._stream=savedStream
+            return
+
         if not self._root:
             self._root = self._addObject(self._rootObject)
 
