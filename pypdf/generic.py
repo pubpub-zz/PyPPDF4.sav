@@ -2281,6 +2281,106 @@ class Destination(TreeObject):
     :rtype: ``int``, or ``None`` if not available.
     """
 
+class PageLabel():
+    def __init__(self,pn=0,defObject=None):
+        """
+        :param
+        integer pn: 1st Page of the group
+        defObject: tuple (1stPage,prefix,increment) or DictionnaryObject from the file
+        """
+        
+        if defObject is None:
+            defObject = DictionaryObject()
+
+        try:
+            if type(defObject) != tuple:
+                self.prefix=defObject['/P']
+            else:
+                self.prefix=defObject[1]+""#None will induce and error and reach default value
+        except:
+            self.prefix=''
+
+        try:
+            if type(defObject) != tuple:
+                self.numbering=defObject['/S']
+            else:
+                self.numbering=defObject[2]+""#None will induce and error and reach default value
+        except:
+            self.numbering='/D' if self.prefix == "" else ""
+
+        self.pn=pn  #1st page of the range
+        try:
+            if type(defObject) != tuple:
+                self.first=int(defObject['/St'])-pn
+            else:
+                self.first=max(1,int(defObject[0]))-pn   #None will induce and error and reach default value
+        except:
+            self.first=1-pn
+
+    def __repr__(self):
+        return "PageLabel Obj(@%r :%s-%s)" % (self.first, self.prefix, self.numbering)
+
+    def buildDefinition(self,pn=None):
+        """
+        build the DictionnaryObjecgt to inject into the PDF
+        """
+        o=DictionaryObject()
+        if self.numbering!='/D' or self.prefix!='':
+            o.update({ NameObject("/S"):NameObject(self.numbering) })
+        if self.prefix!='':
+            o.update({ NameObject("/P"):NameObject(self.prefix) })
+        if pn==None:
+            o.update({ NameObject("/St"):NumberObject(self.first+self.pn) })
+        elif pn==0:
+            pass;  #No start value
+        else:        
+            o.update({ NameObject("/St"):NumberObject(pn) })
+        return o
+
+    def getLabel(self,pn):
+        def int_to_Roman(num):
+            val = [
+                1000, 900, 500, 400,
+                100, 90, 50, 40,
+                10, 9, 5, 4,
+                1
+                ]
+            syb = [
+                "M", "CM", "D", "CD",
+                "C", "XC", "L", "XL",
+                "X", "IX", "V", "IV",
+                "I"
+                ]
+            roman_num = ''
+            i = 0
+            while  num > 0:
+                for _ in range(num // val[i]):
+                    roman_num += syb[i]
+                    num -= val[i]
+                i += 1
+            return roman_num
+
+        def int_to_Alpha(num):
+            t=""
+            while(num>0):
+                    num=num-1
+                    t=chr(num%26+65)+t
+                    num=num//26
+            return t
+        if self.numbering=='/D':
+            st=str(pn+self.first)
+        elif self.numbering=='/R':
+            st=int_to_Roman(pn+self.first)
+        elif self.numbering=='/r':
+            st=int_to_Roman(pn+self.first).lower()
+        elif self.numbering=='/A':
+            st=int_to_Alpha(pn+self.first)
+        elif self.numbering=='/a':
+            st=int_to_Alpha(pn+self.first).lower()
+        else:
+            st=''
+        return self.prefix+st
+
 
 class Bookmark(Destination):
     def writeToStream(self, stream, encryption_key):

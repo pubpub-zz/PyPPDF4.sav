@@ -91,6 +91,11 @@ class PdfFileWriter(object):
                 "written to correctly." % self._stream.name
             )
 
+        # to be done before cloning alternative
+        self._flattenPageLabels=None
+        # copy compatible methods from Reader
+        self.getPageLabel=MethodType(PdfFileReader.getPageLabel,self)
+            
         if isinstance(pdfReaderAsSource,PdfFileReader):
             self.clone(pdfReaderAsSource)
             return
@@ -1046,6 +1051,140 @@ class PdfFileWriter(object):
 
             pageRef.__setitem__(NameObject('/Contents'), content)
 
+    def addPageLabel(self, pn,pagelbl):
+        """
+        if pagelbl is None, we remove the definition from the nums tree
+        """
+        def _getMinMaxKey(node,_min=True):
+            if "/Nums" in node:
+                return node["/Nums"][0 if _min else -2]
+            elif "/Kids" in node:
+                return _getMinMaxKey(node["/Kids"][0 if _min else -1].getObject(),_min)
+            else:
+                raise Exception("_getMinMaxKey abnormal")
+            
+        def _insertPageLabel(pn,pagelbl,node,force=0):
+            if "/Limits" in node:
+                mi,ma=node['/Limits'][0:2]
+            elif ("/Kids" in node and len(node["/Kids"]) == 0) :
+                raise Exception("Kids list empty ???")
+            elif ("/Nums" in node and len(node["/Nums"]) == 0):
+                pn=NumberObject(pn)
+                node['/Nums'].append(pn)
+                node['/Nums'].append(pagelbl)
+                node.update({NameObject('/Limits'):ArrayObject([pn,pn])})
+                return node['/Limits']
+            else:
+                mi=_getMinMaxKey(node,True)   # for tests...
+                ma=_getMinMaxKey(node,False)   # for tests...
+                    
+            if "/Nums" in node:  #it is a list of names
+                #first the case where the entry already exists.
+                try:
+                    idx=node['/Nums'].index(pn)
+                    if pagelbl is not None:
+                        node['/Nums'][idx+1]=pagelbl
+                    else:
+                        del node['/Nums'][idx+1]
+                        del node['/Nums'][idx]
+                    if len(node['/Nums'])==0:
+                        try: del node['/Limits']
+                        except: pass
+                        return -1
+                    if '/Limits' not in node:
+                        node.update({ NameObject('/Limits'):ArrayObject([node['/Nums'][0],node['/Nums'][-2]]) })
+                    node['/Limits'][0]=node['/Nums'][0]
+                    node['/Limits'][1]=node['/Nums'][-2]
+                    return node['/Limits']
+                except:
+                    pass
+                    
+                if mi<=pn<ma or force != 0:
+                    if force == -1:
+                        i=0
+                    else:
+                        for i in range(len(node['/Nums'])//2):
+                            if pn<node['/Nums'][i*2]:
+                                break
+                    pn=NumberObject(pn)
+                    if force == +1:
+                        node['/Nums'].append(pn)
+                        node['/Nums'].append(pagelbl)
+                    else:
+                        node['/Nums'].insert(i*2,pagelbl)
+                        node['/Nums'].insert(i*2,pn)
+                    if '/Limits' not in node:
+                        node.update({ NameObject('/Limits'):ArrayObject([min(pn,mi),max(pn,ma)]) })
+                    if pn<node['/Limits'][0]:
+                        node['/Limits'][0]=pn
+                    if pn>node['/Limits'][1]:
+                        node['/Limits'][1]=pn
+                    return node['/Limits']
+                else:
+                    return None
+            elif "/Kids" in node:     #need to process one level down
+                if force == 1:
+                    lim=_insertPageLabel(pn,pagelbl,node['/Kids'][-1].getObject(),+1)
+                    if '/Limits' not in node: node.update({ NameObject('/Limits') : ArrayObject([ mi, lim[1] ]) })
+                    node['/Limits'][1]=lim[1]
+                    return node['/Limits']
+                elif pn<mi or force == -1:
+                    lim=_insertPageLabel(pn,pagelbl,node['/Kids'][0].getObject(),-1)
+                    if '/Limits' not in node: node.update({ NameObject('/Limits') : ArrayObject([ lim[0], ma ]) })
+                    node['/Limits'][0]=lim[0]
+                    return node['/Limits']
+                elif pn<=ma:
+                    for k in node['/Kids']:
+                        lim=_insertPageLabel(pn,pagelbl,k.getObject())
+                        if lim is None:
+                            continue
+                        if lim is -1: #The call indicates the sub node is empty
+                            del node['/Kids'][node['/Kids'].index(k)]
+                        if lim[0]<mi:
+                            node['/Limits'][0]=TextStringObject(lim[0])
+                        if ma<lim[1]:
+                            node['/Limits'][1]=TextStringObject(lim[1])
+                        return node['/Limits']
+                    raise Exception('no Kids Found ????')
+                else:
+                    return None
+
+        self.getPageLabel(pn)
+        try:
+            dests = self._rootObject.rawGet('/PageLabels').getObject()
+        except:
+            dests=DictionaryObject()
+            dests.update({NameObject("/Nums"):ArrayObject()})
+            self._rootObject.update({NameObject('/PageLabels'):self._addObject(dests)})
+
+        if isinstance(pagelbl,PageLabel):
+            pagelblRef = self._addObject(pagelbl.buildDefinition()) 
+        elif pagelbl is None:
+            if pn not in self._flattenPageLabels:
+                return pn,False
+            pagelblRef = pagelbl
+        elif isinstance(pagelbl,IndirectObject):
+            pagelblRef = pagelbl
+        elif isinstance(pagelbl,DictionaryObject):
+            pagelblRef = self._addObject(pagelbl)
+        else:
+            raise Exception("PageLabel type incorrect")
+
+        assert (isinstance(dests, DictionaryObject) and ("/Kids" in dests or "/Nums" in dests )),"PageLbl root has Kids and  Nums"
+        lim=_insertPageLabel(pn,pagelblRef,dests)
+        if lim is None:
+            lim=_insertPageLabel(pn,pagelblRef,dests,+1)  # we force object to be created at the end of the list
+        self._flattenPageLabels=None
+        self.getPageLabel(pn) # to regenerate _flattenPageLabels
+        return pn,pagelblRef
+
+    def removePageLabel(self,pn):
+        """
+        to provide a clear call to the adequate function
+        return true is deletion occured else return False
+        """
+        return self.addPageLabel(pn,None)[-1] is None
+
     def addURI(self, pagenum, uri, rect, border=None):
         """
         Add an URI from a rectangular area to the specified page. This uses the
@@ -1340,6 +1479,7 @@ class PdfFileReader(object):
         self._trailer = DictionaryObject()
         self._pageId2Num = None  # Maps page IndirectRef number to Page Number
         self._flattenedPages = None
+        self._flattenPageLabels = None
 
         self.strict = strict
         self.debug = debug
@@ -1790,6 +1930,51 @@ class PdfFileReader(object):
     :meth:`numPages<PdfFileReader.numPages>` and
     :meth:`getPage()<PdfFileReader.getPage>` methods.
     """
+
+    def getPageLabel(self,num):
+        def findPageLblEntry(num):
+            #there will be always 0 that will match...
+            k1=-.5
+            for k in sorted(self._flattenPageLabels.keys()): 
+                if k>num: break
+                k1=k
+                
+            if num!=k:
+                k=k1
+            return self._flattenPageLabels[k].getLabel(num)
+            
+        def flattenPageLabel(node=None):
+            flat={}
+            """
+            the default value we use this value in order to have a
+            default value that will be overriden by 0 if provided and
+            if we want to check that there is a definition for page 0
+            """
+            flat[-0.5]=PageLabel(0,(0,'','/D')) 
+            if node is None:
+                p1=self._rootObject
+                if "/PageLabels" in p1:
+                    node=p1["/PageLabels"]
+                else:
+                    return flat
+            if '/Nums' in node:
+               node=node['/Nums'].getObject()
+               for i in range(len(node)//2):
+                   o=PageLabel(node[2*i],node[2*i+1].getObject())
+                   flat[node[2*i]]=o
+            elif '/Kids' in node:
+               for k in node['/Kids']:
+                   flat.update(flattenPageLabel(k.getObject()))
+            else:
+                raise Exception("issue processing PageLabels")
+            return flat
+
+        if self._flattenPageLabels is None:
+            self._flattenPageLabels =flattenPageLabel()
+        assert 0 <= num < self.numPages,"Page Number out of range"
+        return findPageLblEntry(num)            
+                                
+                
 
     @property
     def pageLayout(self):
