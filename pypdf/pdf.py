@@ -54,6 +54,8 @@ if version_info < (3, 0):
 else:
     from io import StringIO, BytesIO
 
+import warnings
+import codecs
 
 __author__ = "Mathieu Fenniak"
 __author_email__ = "biziqe@mathieu.fenniak.net"
@@ -187,16 +189,29 @@ class PdfFileWriter(object):
 
         return self._objects[ido.idnum - 1]
 
-    def _addPage(self, page, action):
-        if page["/Type"] != "/Page":
-            raise ValueError("Page type is not /Page")
+    def _insertPage(self, page, pageNumber):
+        assert page["/Type"] == "/Page"
+        pn=self._pages.getObject()['/Count']
+        if pageNumber>=pn:
+            nextPage,firstPageNum=self._getPage(pn-1,self._pages,0)
+            pageNumber=pn
+        else:
+            nextPage,firstPageNum=self._getPage(pageNumber,self._pages,0)
 
-        page[NameObject("/Parent")] = self._pages
-        pages = self.getObject(self._pages)
-        action(pages["/Kids"], self._addObject(page))
+        nextPage=nextPage.getObject()
+        pages=nextPage['/Parent']
+        pp=nextPage.rawGet('/Parent')
+        page[NameObject("/Parent")] = pp
+        pages["/Kids"].insert(pageNumber-firstPageNum,self._addObject(page))
 
-        pages[NameObject("/Count")] = NumberObject(pages["/Count"] + 1)
-
+        while pp is not None:
+            pp1=pp.getObject()
+            pp1[NameObject("/Count")] = NumberObject(pp1["/Count"] + 1)
+            if pp==self._pages:
+                pp=None
+            else:
+                pp=pp1.rawGet("/Parent")
+        
     def addPage(self, page):
         """
         Adds a page to this PDF file.  The page is usually acquired from a
@@ -205,7 +220,7 @@ class PdfFileWriter(object):
         :param PageObject page: The page to add to the document. Should be
             an instance of :class:`PageObject<pypdf.pdf.PageObject>`
         """
-        self._addPage(page, list.append)
+        self.insertPage(page,self._pages.getObject()["/Count"])
 
     def insertPage(self, page, index=0):
         """
@@ -216,20 +231,88 @@ class PdfFileWriter(object):
             should be an instance of :class:`PageObject<pdf.PageObject>`.
         :param int index: Position at which the page will be inserted.
         """
-        self._addPage(page, lambda l, p: l.insert(index, p))
+        assert 0<=index<=self._pages.getObject()["/Count"]
+        self._insertPage(page,index)
 
-    def getPage(self, pageNumber):
+    def _getPage(self,pageNum,node,firstPageNum): #ppZZ
+        """
+        internal
+        :param int pageNum: page searched for
+        :param IndirectObject node: point to a page or pages within the page tree
+        :param int firstPageNum: page number of the first page of the tree below
+        
+        """
+        if node.getObject()['/Type'] == '/Page':   # it is only one page we have to check
+            if pageNum == firstPageNum :
+                return node,-1  #One Page is not a group, we have to return -1 in order to return the 1st page number of the group
+            else:
+                return firstPageNum+1,-1   # return next first page number
+        elif firstPageNum <= pageNum <firstPageNum+node.getObject()['/Count']:  # the page is within the kids or subkids
+            ret=firstPageNum  #init loop
+            node =node.getObject()
+            for k in node['/Kids']:
+                ret,ret2=self._getPage(pageNum,k,ret)
+                if isinstance(ret,IndirectObject): # page found
+                    if ret2<0:
+                        ret2=firstPageNum
+                    return ret,ret2  # we have the result and push-it up in the recursive call
+            raise("nb of pages not iaw count")
+        else:
+            return firstPageNum+node.getObject()['/Count'],-1   #not found, provide firstPageNumber for next possible group
+
+                
+    def getPage(self, pageNumber,ref=False):
         """
         Retrieves a page by number from this PDF file.
 
         :param int pageNumber: The page number to retrieve
             (pages begin at zero).
-        :return: the page at the index given by *pageNumber*
+        :param boolean ref: return IndirectObject if True else the object (default: False)
+        :return: the page at the index given by *pageNumber* or if not foudn the number of pages
         :rtype: :class:`PageObject<pdf.PageObject>`
         """
-        pages = self.getObject(self._pages)
-        # XXX: crude hack
-        return pages["/Kids"][pageNumber].getObject()
+        assert 0<=pageNumber<self.numPages,\
+                         "PageNumber(%d) Out of pages range [0-%d]"%(pageNumber,self.numPages-1)
+        t=self._getPage(pageNumber,self._pages.getObject(),0)[0]
+        if isinstance(t,int): #not found return the number of pages...
+            return t
+        elif ref:
+            return t
+        else:
+            return t.getObject()
+
+    def removePage(self,pageNum,node=None,firstPageNum=0): #ppZZ
+        """
+        internal
+        :param int pageNum: page searched for
+        :param IndirectObject node: point to a page or pages within the page tree
+        :param int firstPageNum: page number of the first page of the tree below
+        
+        """
+        if node is None:
+            node=self._pages;
+            if not (firstPageNum <= pageNum <firstPageNum+node.getObject()['/Count']):
+                return False
+        if node.getObject()['/Type'] == '/Page':   # it is only one page we have to check
+            if pageNum == firstPageNum :
+                return node  #One Page is not a group, we have to return -1 in order to return the 1st page number of the group
+            else:
+                return firstPageNum+1   # return next first page number
+        elif firstPageNum <= pageNum <firstPageNum+node.getObject()['/Count']:  # the page is within the kids or subkids
+            ret=firstPageNum  #init loop
+            node =node.getObject()
+            for i,k in enumerate(node['/Kids']):
+                ret=self.removePage(pageNum,k,ret)
+                if isinstance(ret,IndirectObject): # page found
+                    del node['/Kids'][i]
+                    node[NameObject('/Count')]=NumberObject(node['/Count']-1)
+                    return True  # we have the result and push-it up in the recursive call
+                elif isinstance(ret,bool) and ret: # page found at a lower level
+                    node[NameObject('/Count')]=NumberObject(node['/Count']-1)
+                    return True  # we have the result and push-it up in the recursive call
+            raise("nb of pages not iaw count")
+        else:
+            return firstPageNum+node.getObject()['/Count']   #not found, provide firstPageNumber for next possible group
 
     @property
     def numPages(self):
