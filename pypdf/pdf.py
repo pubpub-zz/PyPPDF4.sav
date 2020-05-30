@@ -39,8 +39,11 @@ import io
 import random
 import struct
 import time
+import datetime
+import sys
 import uuid
 from hashlib import md5
+from types import MethodType
 from sys import version_info
 
 from . import utils
@@ -1614,6 +1617,88 @@ class PdfFileWriter(object):
             pageRef['/Annots'].append(lnkRef)
         else:
             pageRef[NameObject('/Annots')] = ArrayObject([lnkRef])
+
+    def addCommentObject(self,pageNum,comment,irtSubstitute=None):
+        if isinstance(comment,IndirectObject):
+            comment=comment.getObject()
+        try:
+            irt=comment.rawGet('/IRT')
+            if irtSubstitute is not None:
+                irt=irtSubstitute
+        except:
+            irt=None
+        try:
+            state=comment['/State']
+        except:
+            state=None
+        rgb=comment['/C']
+        try:
+            co=comment['/Contents']
+            co=co.decode('unicode_escape')
+        except:
+            pass
+        try:
+            auth=comment['/T']
+            auth=auth.decode('unicode_escape')
+        except:
+            pass
+        return self.addComment(pageNum,co,auth,comment['/CreationDate'],irt,state,comment['/Rect'][1],comment['/Rect'][0],rgb[0],rgb[1],rgb[2])
+
+    def addComment(self,pageNum,text,author="Unindentified",creationDate=None,irt=None,state=None,top=0,left=0,R=1.0,G=0.81961,B=0.0):
+        page=self.getPage(pageNum)
+        if creationDate == None:
+            creationDate = datetime.datetime.now()
+        if isinstance(creationDate,datetime.datetime):
+            creationDate=creationDate.strftime("D:%Y%m%d%H%M%S%z")
+
+        if top<=1.0:  #top est en % de la page
+            top=float(page['/MediaBox'][3])*(1-top)
+        if left<=1.0:  #top est en % de la page
+            left=float(page['/MediaBox'][2])*(left)
+
+        ano=DictionaryObject()
+        ano.update({NameObject("/Type"):NameObject("/Annot"),NameObject("/Subtype"):NameObject("/Text"),NameObject("/Name"):NameObject("/Comment"),NameObject('/F'):NumberObject(4),
+             NameObject('/Open'): BooleanObject(False),
+             NameObject("/Subj"):TextStringObject("Note"),
+             NameObject("/C"):ArrayObject([FloatObject(R), FloatObject(G), FloatObject(B)]),
+             
+             NameObject("/T"):TextStringObject(author),
+             NameObject("/Contents") : TextStringObject(text),
+
+             NameObject("/CreationDate"):TextStringObject(creationDate), NameObject("/M"):TextStringObject(creationDate), ##"D:20200101020304+01'00'"),
+        
+             NameObject("/Rect"):ArrayObject([FloatObject(left),FloatObject(top),FloatObject(float(left)+24.0),FloatObject(float(top)+24.0)]),
+            })
+        if irt is not None:
+            ano.update({NameObject("/IRT"):irt,
+                        NameObject("/Rect"):irt.getObject()['/Rect'],
+                       })
+        if state is not None:
+            ano.update({NameObject("/State"):TextStringObject(state),NameObject("/StateModel"):TextStringObject('Review'),
+                       })
+        if not '/Annots' in page:
+            page.update({NameObject('/Annots'):ArrayObject(), })
+        ano=self._addObject(ano)
+        page['/Annots'].append(ano)
+        return ano
+
+    def addCommentsFromPage(self,pageNum,page):
+        ret=[]
+        tr={}
+        try:
+            for c in page['/Annots']:
+                co=c.getObject()
+                if co['/Subtype']=='/Text':
+                    try:
+                        irt=co.rawGet('/IRT')
+                        irt=tr[irt.idnum]
+                    except:
+                        irt=None
+                    r=self.addCommentObject(pageNum,co,irt)
+                    tr[c.idnum]=r
+                    ret.append(r)
+        finally:
+            return ret
 
     _VALID_LAYOUTS = [
         '/NoLayout', '/SinglePage', '/OneColumn', '/TwoColumnLeft',
