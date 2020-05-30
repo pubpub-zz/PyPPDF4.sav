@@ -31,13 +31,14 @@
 Implementation of stream filters for PDF.
 """
 
+import math
 import base64
 import struct
 from sys import version_info
 
-from pypdf import generic
-from pypdf.generic import *
-from pypdf.utils import PdfReadError, pypdfOrd, paethPredictor, PdfStreamError
+from . import generic
+from .generic import *
+from .utils import PdfReadError, pypdfOrd, paethPredictor,PdfStreamError
 
 try:
     import zlib

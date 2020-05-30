@@ -43,10 +43,10 @@ import uuid
 from hashlib import md5
 from sys import version_info
 
-from pypdf import utils
-from pypdf.generic import *
-from pypdf.utils import *
-from pypdf.utils import pypdfBytes as b_
+from . import utils
+from .generic import *
+from .utils import *
+from .utils import pypdfBytes as b_
 
 if version_info < (3, 0):
     from cStringIO import StringIO

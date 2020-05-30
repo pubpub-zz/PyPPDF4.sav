@@ -38,8 +38,9 @@ import uuid
 import warnings
 from io import BytesIO
 
-from pypdf.utils import *
-from pypdf.utils import pypdfBytes as b_, pypdfUnicode as u_
+#from . import utils
+from .utils import * 
+from .utils import pypdfUnicode as u_, pypdfBytes as b_
 
 __author__ = "Mathieu Fenniak"
 __author_email__ = "biziqe@mathieu.fenniak.net"
@@ -906,7 +907,7 @@ class StreamObject(DictionaryObject):
         return retval
 
     def flateEncode(self):
-        from pypdf.filters import FlateCodec
+        from .filters import FlateCodec
 
         if "/Filter" in self:
             f = self["/Filter"]
@@ -934,7 +935,7 @@ class EncodedStreamObject(StreamObject):
         self.decodedSelf = None
 
     def getData(self):
-        from pypdf.filters import decodeStreamData
+        from .filters import decodeStreamData
 
         if self.decodedSelf:
             # Cached version of decoded object
