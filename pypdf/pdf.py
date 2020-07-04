@@ -816,7 +816,7 @@ class PdfFileWriter(object):
                 data[key] = value
 
             return data
-        elif isinstance(data, ArrayObject):
+        if isinstance(data, ArrayObject):
             for i in range(len(data)):
                 value = self._sweepIndirectReferences(externMap, data[i])
                 if isinstance(value, StreamObject):
@@ -825,37 +825,36 @@ class PdfFileWriter(object):
                     value = self._addObject(value)
                 data[i] = value
             return data
-        elif isinstance(data, IndirectObject):
+        if isinstance(data, IndirectObject):
             # Internal indirect references are fine
             if data.pdf == self:
                 if data.idnum in self.stack:
                     return data
-                else:
-                    self.stack.append(data.idnum)
-                    realdata = self.getObject(data)
-                    self._sweepIndirectReferences(externMap, realdata)
-                    return data
-            else:
-                if data.pdf.isClosed:
-                    raise ValueError(
-                        "I/O operation on closed file: "
-                        + data.pdf._stream.name
-                    )
-                newobj = externMap.get(data.pdf, {}).\
-                    get(data.generation, {}).\
-                    get(data.idnum, None)
+                self.stack.append(data.idnum)
+                realdata = self.getObject(data)
+                self._sweepIndirectReferences(externMap, realdata)
+                return data
+            if data.pdf.isClosed:
+                raise ValueError(
+                    "I/O operation on closed file: " + data.pdf._stream.name
+                )
+            newobj = (
+                externMap.get(data.pdf, {})
+                .get(data.generation, {})
+                .get(data.idnum, None)
+            )
 
-                if newobj is None:
-                    try:
-                        newobj = data.pdf.getObject(data)
-                        self._objects.append(None)  # placeholder
-                        idnum = len(self._objects)
-                        newobj_ido = IndirectObject(idnum, 0, self)
+            if newobj is None:
+                try:
+                    newobj = data.pdf.getObject(data)
+                    self._objects.append(None)  # placeholder
+                    idnum = len(self._objects)
+                    newobj_ido = IndirectObject(idnum, 0, self)
 
-                        if data.pdf not in externMap:
-                            externMap[data.pdf] = {}
-                        if data.generation not in externMap[data.pdf]:
-                            externMap[data.pdf][data.generation] = {}
+                    if data.pdf not in externMap:
+                        externMap[data.pdf] = {}
+                    if data.generation not in externMap[data.pdf]:
+                        externMap[data.pdf][data.generation] = {}
 
                         externMap[data.pdf][data.generation][data.idnum] = newobj_ido
                         newobj = self._sweepIndirectReferences(externMap, newobj)
@@ -2707,12 +2706,8 @@ class PdfFileReader(object):
                     "(%d %d); xref table not zero-indexed."
                     % (ref.idnum, ref.generation, actualId, actualGen)
                 )
-            else:
-                # XRef Table is corrected in non-strict mode
-                pass
-        elif self.strict and (
-                actualId != ref.idnum or actualGen != ref.generation
-        ):
+            # XRef Table is corrected in non-strict mode
+        elif self.strict and (actualId != ref.idnum or actualGen != ref.generation):
             # Some other problem
             raise PdfReadError(
                 "Expected object ID (%d, %d) does not match actual (%d, %d)."
@@ -2867,7 +2862,7 @@ class PdfFileReader(object):
         """
         if (ref.generation, ref.idnum) in self._cachedObjects:
             return self._cachedObjects[(ref.generation, ref.idnum)]
-        elif ref.idnum in self._xrefStm:
+        if ref.idnum in self._xrefStm:
             retval = self._getObjectByRef(ref, self.R_XSTREAM)
         elif (
             ref.generation in self._xrefTable
@@ -2899,7 +2894,7 @@ class PdfFileReader(object):
             and ref.idnum in self._xrefTable[ref.generation]
         ):
             return self._xrefTable[ref.generation][ref.idnum][1]
-        elif ref.idnum in self._xrefStm:
+        if ref.idnum in self._xrefStm:
             return self._xrefStm[ref.idnum][0] == 0
 
         # Object does not exist
@@ -2921,8 +2916,7 @@ class PdfFileReader(object):
             if i == 0:
                 # First value defaults to 1
                 return 1
-            else:
-                return 0
+            return 0
 
         def usedBefore(num, generation):
             # We move backwards through the xrefs, don't replace any.
@@ -3310,8 +3304,7 @@ class PdfFileReader(object):
                 # If using CR+LF, go back 2 bytes, else 1
                 stream.seek(2 if crlf else 1, 1)
                 break
-            else:
-                line = x + line
+            line = x + line
 
         return line
 

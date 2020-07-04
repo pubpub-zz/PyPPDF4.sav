@@ -94,9 +94,7 @@ except ImportError:
         ms = IO.MemoryStream()
         ms.Write(bytes, 0, these_bytes.Length)
         ms.Position = 0  # fseek 0
-        gz = IO.Compression.DeflateStream(
-            ms, IO.Compression.CompressionMode.Decompress
-        )
+        gz = IO.Compression.DeflateStream(ms, IO.Compression.CompressionMode.Decompress)
         these_bytes = _read_bytes(gz)
         retval = _bytearr_to_string(these_bytes)
         gz.Close()
