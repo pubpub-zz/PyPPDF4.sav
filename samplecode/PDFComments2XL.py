@@ -65,7 +65,7 @@ def ListAnnots(pdfS):
             pass
     #copy the information into the original comment
     for k,o in lst.items():
-        if '/IRT' in o:
+        if '/IRT' in o and '/Contents' in o:
             t=o['/Contents']
             if isinstance(t,bytes):t=t.replace(b'\r',b'\n').decode('unicode_escape')
             lst[o.rawGet('/IRT').idnum].irt[o['/M']]=\
@@ -95,23 +95,25 @@ if len(sys.argv)==1:
 
 pdfS=PDF.PdfFileReader(sys.argv[-1])
 
+doc=os.path.splitext(os.path.split(pdfS.filepath)[-1])[0]
 if '-o' in sys.argv:
     xlFile=sys.argv [sys.argv.index('-o')+1]
 else:
     tempFolder=os.environ['TEMP'].replace('\\','/')
     if tempFolder[-1]!='/' : tempFolder+='/'
-    xlFile=tempFolder+"Comments on "+os.path.splitext(os.path.split(pdfS.filepath)[-1])[0]+'.xlsx'
+    xlFile=tempFolder+"Comments on "+doc+'.xlsx'
 
 #prepare the destination workbook
 wb = Workbook()
 ws=wb.active
-ws.append(('Page','Pos','Chapt','Originator','Comment','Answer'))
+ws.append(('Doc','Page','Pos','Chapt','Originator','Comment','Answer'))
 ws.column_dimensions[get_column_letter(0+1)].width=5
 ws.column_dimensions[get_column_letter(1+1)].width=5
-ws.column_dimensions[get_column_letter(2+1)].width=25
-ws.column_dimensions[get_column_letter(3+1)].width=15
-ws.column_dimensions[get_column_letter(4+1)].width=90
+ws.column_dimensions[get_column_letter(2+1)].width=5
+ws.column_dimensions[get_column_letter(3+1)].width=25
+ws.column_dimensions[get_column_letter(4+1)].width=15
 ws.column_dimensions[get_column_letter(5+1)].width=90
+ws.column_dimensions[get_column_letter(6+1)].width=90
 
 #check if decryption is required
 if pdfS.isEncrypted: pdfS.decrypt('')
@@ -146,13 +148,17 @@ for x in sorted(lst.keys()):
     #print(FindOutline(pdfS.MyOutlines,x[0],x[1])[0],',',end='')
     auth=p['/T']
     if isinstance(auth,bytes):auth=auth.decode('unicode_escape')
-    cont=p['/Contents']
+    #print(p)
+    try:
+        cont=p['/Contents']
+    except:
+        cont=""
     if isinstance(cont,bytes):cont=cont.replace(b'\r',b'\n').decode('unicode_escape')
     #print(cont,',',end='')
     if isinstance(p.irt_str,bytes):p.irt_str=p.irt_str.replace(b'\r',b'\n').decode('unicode_escape')
     #print(p.irt_str)
 
-    ws.append((pdfS.getPageLabel(x[0])  ,'%.0f %%'%pc,FindOutline(pdfS.MyOutlines,x[0],x[1])[0],auth,cont,p.irt_str))
+    ws.append((doc,pdfS.getPageLabel(x[0])  ,'%.0f %%'%x[1],FindOutline(pdfS.MyOutlines,x[0],x[1])[0],auth,cont,p.irt_str))
 
 #post insertion formating
 for row in ws.iter_rows():
@@ -161,5 +167,6 @@ for row in ws.iter_rows():
 
 #save and open the file
 wb.save(xlFile)
+print(xlFile)
 if ('-d' in sys.argv) or ('idlelib.run' in sys.modules):
     os.startfile(xlFile)
