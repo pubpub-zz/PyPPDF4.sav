@@ -6,32 +6,32 @@ that relies on a "fixture data" (e.g. a test file to read from) place it in the
 ``/tests/fixture_data/testX/`` path (see some of the examples below to have a
 hint on how to do this).
 """
+# TODO:  switch dependence to pathlib.
 import binascii
+from io import BytesIO
+import os
+from os.path import abspath, basename, dirname, join, pardir
 import sys
+import tempfile
 import unittest
 
-from io import BytesIO
-from os.path import abspath, basename, dirname, join, pardir
+from pypdf.generic import IndirectObject, readObject
+from pypdf.pdf import PdfFileReader, PdfFileWriter
 
 # Configure path environment
-PROJECT_ROOT = abspath(
-    join(dirname(__file__), pardir)
-)
+PROJECT_ROOT = abspath(join(dirname(__file__), pardir))
 TEST_DATA_ROOT = join(PROJECT_ROOT, "tests", "fixture_data")
 
 sys.path.append(PROJECT_ROOT)
 
-from pypdf.pdf import PdfFileReader, PdfFileWriter
-from pypdf.generic import IndirectObject, readObject
-
 
 class PdfReaderTestCases(unittest.TestCase):
+    """ [EXPLAIN THIS CLASS.] """
+
     def setUp(self):
         # Variable defining the path where the method to be run next can store
         # its own fixture (test) data.
-        self.localDataRoot = join(
-            TEST_DATA_ROOT, self.id().split(".")[-1]
-        )
+        self.localDataRoot = join(TEST_DATA_ROOT, self.id().split(".")[-1])
 
     def testDel(self):
         """
@@ -44,20 +44,21 @@ class PdfReaderTestCases(unittest.TestCase):
         try:
             r.__del__()
             self.assertTrue(True)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             self.assertTrue(
-                False, "Exception '%s' was raised in %s.__del__()" %
-                (e, PdfFileReader.__name__)
+                False,
+                "Exception '%s' was raised in %s.__del__()"
+                % (e, PdfFileReader.__name__),
             )
 
         try:
             w.__del__()
             self.assertTrue(True)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             self.assertTrue(
                 False,
-                "Exception '%s' was raised in %s.__del__()" %
-                (e, PdfFileWriter.__name__)
+                "Exception '%s' was raised in %s.__del__()"
+                % (e, PdfFileWriter.__name__),
             )
 
     def testFileLoad(self):
@@ -66,27 +67,23 @@ class PdfReaderTestCases(unittest.TestCase):
         compare to expected textual output. Expected outcome: file loads, text
         matches expected.
         """
-        with open(
-                join(TEST_DATA_ROOT, 'crazyones.pdf'), 'rb'
-        ) as inputfile:
+        with open(join(TEST_DATA_ROOT, "crazyones.pdf"), "rb") as inputfile:
             # Load PDF file from file
             r = PdfFileReader(inputfile)
             page1 = r.getPage(0)
 
             # Retrieve the text of the PDF
-            with open(
-                    join(self.localDataRoot, 'crazyones.txt'), 'rb'
-            ) as pdftextFile:
+            with open(join(self.localDataRoot, "crazyones.txt"), "rb") as pdftextFile:
                 pdftext = pdftextFile.read()
 
-            page1Text = page1.extractText().replace('\n', '').encode('utf-8')
+            page1Text = page1.extractText().replace("\n", "").encode("utf-8")
 
             # Compare the text of the PDF to a known source
             self.assertEqual(
-                pdftext, page1Text,
-                msg='PDF extracted text differs from expected value.'
-                    '\n\nExpected:\n\n%r\n\nExtracted:\n\n%r\n\n'
-                    % (pdftext, page1Text)
+                pdftext,
+                page1Text,
+                msg="PDF extracted text differs from expected value."
+                "\n\nExpected:\n\n%r\n\nExtracted:\n\n%r\n\n" % (pdftext, page1Text),
             )
 
             r.close()
@@ -97,26 +94,25 @@ class PdfReaderTestCases(unittest.TestCase):
         compare to expected textual output. Expected outcome: file loads, image
         matches expected.
         """
-        with open(join(TEST_DATA_ROOT, 'jpeg.pdf'), 'rb') as inputfile:
+        with open(join(TEST_DATA_ROOT, "jpeg.pdf"), "rb") as inputfile:
             # Load PDF file from file
             r = PdfFileReader(inputfile)
 
             # Retrieve the text of the image
-            with open(
-                    join(self.localDataRoot, 'jpeg.txt'), 'r'
-            ) as pdftextFile:
+            with open(join(self.localDataRoot, "jpeg.txt"), "r") as pdftextFile:
                 imagetext = pdftextFile.read()
 
             page1 = r.getPage(0)
-            xObject = page1['/Resources']['/XObject'].getObject()
-            data = xObject['/Im4'].getData()
+            xObject = page1["/Resources"]["/XObject"].getObject()
+            data = xObject["/Im4"].getData()
 
             # Compare the text of the PDF to a known source
             self.assertEqual(
-                binascii.hexlify(data).decode(), imagetext,
-                msg='PDF extracted image differs from expected value.'
-                    '\n\nExpected:\n\n%r\n\nExtracted:\n\n%r\n\n'
-                    % (imagetext, binascii.hexlify(data).decode())
+                binascii.hexlify(data).decode(),
+                imagetext,
+                msg="PDF extracted image differs from expected value."
+                "\n\nExpected:\n\n%r\n\nExtracted:\n\n%r\n\n"
+                % (imagetext, binascii.hexlify(data).decode()),
             )
 
             r.close()
@@ -132,7 +128,9 @@ class PdfReaderTestCases(unittest.TestCase):
         """
         self.maxDiff = None
         inputFiles = (
-            "jpeg.pdf", "Seige_of_Vicksburg_Sample_OCR.pdf", "SF424_page2.pdf"
+            "jpeg.pdf",
+            "Seige_of_Vicksburg_Sample_OCR.pdf",
+            "SF424_page2.pdf",
         )
 
         for filename in inputFiles:
@@ -144,10 +142,13 @@ class PdfReaderTestCases(unittest.TestCase):
             expItems = list()
 
             for ref in r.objects(PdfFileReader.R_XTABLE, True):
-                actualItems.append((
-                    ref.idnum, ref.generation,
-                    r._xrefTable[ref.generation][ref.idnum][0]
-                ))
+                actualItems.append(
+                    (
+                        ref.idnum,
+                        ref.generation,
+                        r._xrefTable[ref.generation][ref.idnum][0],
+                    )
+                )
 
             r.close()
             # We artificially read the XRef Table entries that we know belong
@@ -167,7 +168,7 @@ class PdfReaderTestCases(unittest.TestCase):
         ``PdfFileReader.objects()`` second part (dealing with XStream objects)
         is invoked and implicitly tested.
         """
-        inputFiles = ("crazyones.pdf", )
+        inputFiles = ("crazyones.pdf",)
 
         for filename in inputFiles:
             filepath = join(self.localDataRoot, filename)
@@ -181,8 +182,8 @@ class PdfReaderTestCases(unittest.TestCase):
                     if not line or line.isspace() or line.startswith("%"):
                         continue
 
-                    type, field2, field3 = (int(f) for f in line.split())
-                    expItems.append((type, field2, field3))
+                    this_type, field2, field3 = (int(f) for f in line.split())
+                    expItems.append((this_type, field2, field3))
 
             for item in r.objects(PdfFileReader.R_XSTREAM, True):
                 priv8Item = r._xrefStm[item.idnum]
@@ -199,11 +200,12 @@ class PdfReaderTestCases(unittest.TestCase):
             expItems = sorted(expItems)
 
             self.assertListEqual(
-                expItems, actualItems,
-                "Didn't correctly read the Cross-Reference Stream"
+                expItems,
+                actualItems,
+                "Didn't correctly read the Cross-Reference Stream",
             )
 
-    def testReadXRefStreamCompressedObjects(self):
+    def testReadXRefStreamCompressedObjects(self):  # pylint: disable=too-many-locals
         """
         Targets the same objects as ``testXRefStreamObjects()``, but instead
         of ensuring an identity between the list of items read and the one
@@ -213,7 +215,7 @@ class PdfReaderTestCases(unittest.TestCase):
         previous test cases did.
         """
         self.maxDiff = None
-        inputFiles = ("crazyones.pdf", )
+        inputFiles = ("crazyones.pdf",)
         # expItems and actualItems will contain two-element tuples, where the
         # first element is the object ID, used to sort.
         sortKey = lambda e: e[0]
@@ -238,7 +240,7 @@ class PdfReaderTestCases(unittest.TestCase):
 
                     expItems.append((globalId, obj))
 
-            for itemid, item in filter(compressedObj, r._xrefStm.items()):
+            for itemid, _item in filter(compressedObj, r._xrefStm.items()):
                 # We deal exclusively with compressed objects (from Table 18 of
                 # ISO 32000 reference, 2008) whose generation number is 0
                 actualItems.append(
@@ -265,13 +267,11 @@ class PdfReaderTestCases(unittest.TestCase):
         """
         self.maxDiff = None
         # TO-DO Possibly add a few other files to this test case
-        inputFiles = ("GeoBase_NHNC1_Data_Model_UML_EN.pdf", )
+        inputFiles = ("GeoBase_NHNC1_Data_Model_UML_EN.pdf",)
 
         for filename in inputFiles:
             filepath = join(self.localDataRoot, filename)
-            expItems = {
-                e[0]: e[1:] for e in self._parseXRefTable(filepath, (0, 2, 3))
-            }
+            expItems = {e[0]: e[1:] for e in self._parseXRefTable(filepath, (0, 2, 3))}
             actualItems = list()
             r = PdfFileReader(join(TEST_DATA_ROOT, filename))
 
@@ -292,11 +292,11 @@ class PdfReaderTestCases(unittest.TestCase):
 
                 # If an item is in use in the XRef Stream, ensure then that it
                 # is marked free in the XRef Table.
-                if r._xrefStm[a.idnum][0] in (2, ):
+                if r._xrefStm[a.idnum][0] in (2,):
                     self.assertTrue(
                         expItems[e][-1],
                         "Item %d should be hid by the XRef Table, but it was "
-                        "not." % e
+                        "not." % e,
                     )
 
     def testIsObjectFree(self):
@@ -306,7 +306,9 @@ class PdfReaderTestCases(unittest.TestCase):
         # TO-DO Find PDF files that feature free-entry lists. We are checking
         # isObjectFree() only against used items.
         inputFiles = (
-            "jpeg.pdf", "Seige_of_Vicksburg_Sample_OCR.pdf", "SF424_page2.pdf",
+            "jpeg.pdf",
+            "Seige_of_Vicksburg_Sample_OCR.pdf",
+            "SF424_page2.pdf",
         )
 
         for filename in inputFiles:
@@ -333,7 +335,9 @@ class PdfReaderTestCases(unittest.TestCase):
         identifier`` feature) of ``PdfFileReader``.
         """
         inputFiles = (
-            "jpeg.pdf", "Seige_of_Vicksburg_Sample_OCR.pdf", "SF424_page2.pdf"
+            "jpeg.pdf",
+            "Seige_of_Vicksburg_Sample_OCR.pdf",
+            "SF424_page2.pdf",
         )
 
         for filename in inputFiles:
@@ -378,9 +382,8 @@ class PdfReaderTestCases(unittest.TestCase):
                 if len(tokens) == 2:
                     if itemssofar != expecteditems:
                         raise ValueError(
-                            "Line \"%d %d\" specified %d items, %d read"
-                            % (startid, expecteditems, expecteditems,
-                               itemssofar)
+                            'Line "%d %d" specified %d items, %d read'  # pylint: disable=bad-string-format-type
+                            % (startid, expecteditems, expecteditems, itemssofar)
                         )
 
                     startid = int(tokens[0])
@@ -389,8 +392,10 @@ class PdfReaderTestCases(unittest.TestCase):
                 elif len(tokens) == 3:  # New object info to add
                     # We yield an (id, gen, byte offset) tuple
                     output = (
-                        startid + itemssofar, int(tokens[1]), int(tokens[0]),
-                        tokens[2] == "f"
+                        startid + itemssofar,
+                        int(tokens[1]),
+                        int(tokens[0]),
+                        tokens[2] == "f",
                     )
                     yield tuple(output[s] for s in mask)
 
@@ -410,8 +415,13 @@ class PdfReaderTestCases(unittest.TestCase):
         functionally equivalent.
         """
         properties = (
-            "documentInfo", "xmpMetadata", "numPages", "pages", "pageLayout",
-            "pageMode", "isEncrypted"
+            "documentInfo",
+            "xmpMetadata",
+            "numPages",
+            "pages",
+            "pageLayout",
+            "pageMode",
+            "isEncrypted",
         )
         methods = ("getNamedDestinations", "getOutlines")
 
@@ -421,62 +431,134 @@ class PdfReaderTestCases(unittest.TestCase):
         for m in methods:
             self.assertTrue(
                 hasattr(PdfFileReader, m),
-                "%s() is not part of %s" % (m, PdfFileReader.__name__)
+                "%s() is not part of %s" % (m, PdfFileReader.__name__),
             )
             self.assertTrue(
                 callable(getattr(PdfFileReader, m)),
-                "%s.%s() is not callable" % (PdfFileReader.__name__, m)
+                "%s.%s() is not callable" % (PdfFileReader.__name__, m),
             )
+
+    def testAddAttachment(self):
+        """
+        Tests the addAttachment function for attaching a single file.
+
+        Since the Names array in the EmbeddedFiles dictionary contains both the
+        name (string) and indirect object (dictionary) for each file, we have
+        to check for two entries per attached file.
+        """
+
+        _, testfile = tempfile.mkstemp()
+
+        try:
+            # Make PDF with attachment
+            with PdfFileReader(join(TEST_DATA_ROOT, "jpeg.pdf")) as reader:
+                with PdfFileWriter(testfile) as writer:
+                    writer.appendPagesFromReader(reader)
+                    with open(
+                        join(  # pylint: disable=bad-continuation
+                            TEST_DATA_ROOT, "attachment_small.png"
+                        ),
+                        "rb",  # pylint: disable=bad-continuation  # pylint: disable=bad-continuation
+                    ) as attachment_stream:
+                        read_data = attachment_stream.read()
+                        writer.addAttachment("attachment_small.png", read_data)
+                    writer.write()
+
+            # Check for attachment entries
+            with PdfFileReader(testfile) as pdf:
+                # For caching _cachedObjects data
+                pdf.numPages  # pylint: disable=pointless-statement
+                for _k, v in pdf._cachedObjects.items():
+                    if "/Type" in v:
+                        if v["/Type"] == "/Catalog":
+                            self.assertIsNotNone(v["/Names"]["/EmbeddedFiles"])
+                            real = len(v["/Names"]["/EmbeddedFiles"]["/Names"])
+                            self.assertEqual(2, real)
+        finally:
+            os.remove(testfile)
+
+    def testAttachFiles(self):
+        """
+        Tests the addAttachment function for attaching multiple files.
+
+        Since the Names array in the EmbeddedFiles dictionary contains both the
+        name (string) and indirect object (dictionary) for each file, we have
+        to check for two entries per attached file.
+        """
+
+        numAttachments = 3
+        _, testfile = tempfile.mkstemp()
+
+        try:
+            # Make PDF with attachment
+            with PdfFileReader(join(TEST_DATA_ROOT, "jpeg.pdf")) as reader:
+                with PdfFileWriter(testfile) as writer:
+                    writer.appendPagesFromReader(reader)
+
+                    writer.attachFiles(
+                        [join(TEST_DATA_ROOT, "attachment_small.png")] * numAttachments
+                    )
+                    writer.write()
+
+            # Check for attachment entries
+            with PdfFileReader(testfile) as pdf:
+                # For caching _cachedObjects data
+                pdf.numPages  # pylint: disable=pointless-statement
+                for _k, v in pdf._cachedObjects.items():
+                    if "/Type" in v:
+                        if v["/Type"] == "/Catalog":
+                            self.assertIsNotNone(v["/Names"]["/EmbeddedFiles"])
+                            real = len(v["/Names"]["/EmbeddedFiles"]["/Names"])
+                            self.assertEqual(numAttachments * 2, real)
+        finally:
+            os.remove(testfile)
 
 
 class AddJsTestCase(unittest.TestCase):
+    """ [EXPLAIN THIS CLASS.] """
+
     def setUp(self):
-        reader = PdfFileReader(join(TEST_DATA_ROOT, 'crazyones.pdf'))
+        """ [EXPLAIN THIS CONVENIENCE.] """
+        reader = PdfFileReader(join(TEST_DATA_ROOT, "crazyones.pdf"))
         self.writer = PdfFileWriter(BytesIO(b""))
         self.writer.appendPagesFromReader(reader)
 
     def testAdd(self):
-        self.writer.addJS(
-            "this.print({bUI:true,bSilent:false,bShrinkToFit:true});"
-        )
+        """ [EXPLAIN THIS TEST.] """
+        self.writer.addJS("this.print({bUI:true,bSilent:false,bShrinkToFit:true});")
 
         self.assertIn(
-            '/Names', self.writer._rootObject,
-            "addJS should add a name catalog in the root object."
+            "/Names",
+            self.writer._rootObject,
+            "addJS should add a name catalog in the root object.",
         )
         self.assertIn(
-            '/JavaScript', self.writer._rootObject['/Names'],
-            "addJS should add a JavaScript name tree under the name catalog."
+            "/JavaScript",
+            self.writer._rootObject["/Names"],
+            "addJS should add a JavaScript name tree under the name catalog.",
         )
         self.assertIn(
-            '/OpenAction', self.writer._rootObject,
-            "addJS should add an OpenAction to the catalog."
+            "/JavaScript",
+            self.writer._rootObject,
+            "addJS should add a JavaScript action to the catalog.",
         )
 
     def testOverwrite(self):
-        self.writer.addJS(
-            "this.print({bUI:true,bSilent:false,bShrinkToFit:true});"
-        )
+        """ [EXPLAIN THIS TEST.] """
+        self.writer.addJS("this.print({bUI:true,bSilent:false,bShrinkToFit:true});")
         first_js = self._getJavascriptName()
 
-        self.writer.addJS(
-            "this.print({bUI:true,bSilent:false,bShrinkToFit:true});"
-        )
+        self.writer.addJS("this.print({bUI:true,bSilent:false,bShrinkToFit:true});")
         second_js = self._getJavascriptName()
 
         self.assertNotEqual(
-            first_js, second_js,
-            "addJS should overwrite the previous script in the catalog."
+            first_js,
+            second_js,
+            "addJS should overwrite the previous script in the catalog.",
         )
 
     def _getJavascriptName(self):
-        self.assertIn('/Names', self.writer._rootObject)
-        self.assertIn(
-            '/JavaScript', self.writer._rootObject['/Names']
-        )
-        self.assertIn(
-            '/Names',
-            self.writer._rootObject['/Names']['/JavaScript']
-        )
-        return self.writer. \
-            _rootObject['/Names']['/JavaScript']['/Names'][0]
+        self.assertIn("/Names", self.writer._rootObject)
+        self.assertIn("/JavaScript", self.writer._rootObject["/Names"])
+        self.assertIn("/Names", self.writer._rootObject["/Names"]["/JavaScript"])
+        return self.writer._rootObject["/Names"]["/JavaScript"]["/Names"][0]

@@ -27,9 +27,8 @@
 """
 Utility functions for PDF library.
 """
-import sys
-
 from binascii import hexlify
+import sys
 
 try:
     import __builtin__ as builtins
@@ -64,7 +63,7 @@ def isBytes(b):
     return isinstance(b, bytes_type)
 
 
-#custom implementation of warnings.formatwarning
+# custom implementation of warnings.formatwarning
 def formatWarning(message, category, filename, lineno, line=None):
     file = filename.replace("/", "\\").rsplit("\\", 1)[-1]  # find the file name
     return "%s: %s [%s:%s]\n" % (category.__name__, message, file, lineno)
@@ -116,7 +115,7 @@ def skipOverWhitespace(stream):
 
     while tok in WHITESPACES:
         tok = stream.read(1)
-        cnt+=1
+        cnt += 1
 
     return cnt > 1
 
@@ -125,8 +124,8 @@ def skipOverComment(stream):
     tok = stream.read(1)
     stream.seek(-1, 1)
 
-    if tok == pypdfBytes('%'):
-        while tok not in (pypdfBytes('\n'), pypdfBytes('\r')):
+    if tok == pypdfBytes("%"):
+        while tok not in (pypdfBytes("\n"), pypdfBytes("\r")):
             tok = stream.read(1)
 
 
@@ -136,21 +135,20 @@ def readUntilRegex(stream, regex, ignore_eof=False):
     Raise PdfStreamError on premature end-of-file.
     :param bool ignore_eof: If true, ignore end-of-line and return immediately
     """
-    name = pypdfBytes('')
+    name = pypdfBytes("")
 
     while True:
         tok = stream.read(16)
 
         if not tok:
             # stream has truncated prematurely
-            if ignore_eof == True:
+            if ignore_eof:
                 return name
-            else:
-                raise PdfStreamError("Stream has ended unexpectedly")
+            raise PdfStreamError("Stream has ended unexpectedly")
         m = regex.search(tok)
         if m is not None:
-            name += tok[:m.start()]
-            stream.seek(m.start()-len(tok), 1)
+            name += tok[: m.start()]
+            stream.seek(m.start() - len(tok), 1)
             break
         name += tok
 
@@ -185,7 +183,7 @@ class ConvertFunctionsToVirtualList(object):
 
 
 def RC4Encrypt(key, plaintext):
-    S = [i for i in range(256)]
+    S = list(range(256))
     j = 0
 
     for i in range(256):
@@ -206,10 +204,10 @@ def RC4Encrypt(key, plaintext):
 
 
 def matrixMultiply(a, b):
-    return [[sum([float(i) * float(j)
-                  for i, j in zip(row, col)]
-                ) for col in zip(*b)]
-            for row in a]
+    return [
+        [sum([float(i) * float(j) for i, j in zip(row, col)]) for col in zip(*b)]
+        for row in a
+    ]
 
 
 class PyPdfError(Exception):
@@ -242,13 +240,12 @@ def pypdfBytes(s):
             return chr(s)
         if isinstance(s, bytes):
             return s
-        return s.encode('latin-1')
-    else:
-        if isinstance(s, int):
-            return bytes([s])
-        if isinstance(s, bytes):
-            return s
-        return s.encode('latin-1')
+        return s.encode("latin-1")
+    if isinstance(s, int):
+        return bytes([s])
+    if isinstance(s, bytes):
+        return s
+    return s.encode("latin-1")
 
 
 def pypdfUnicode(s):
@@ -260,11 +257,10 @@ def pypdfUnicode(s):
     if sys.version_info[0] < 3:
         if isinstance(s, unicode):
             return s
-        return unicode(s, 'unicode_escape')
-    else:
-        if isinstance(s, str):
-            return s
-        return s.decode('unicode_escape')
+        return unicode(s, "unicode_escape")
+    if isinstance(s, str):
+        return s
+    return s.decode("unicode_escape")
 
 
 def pypdfStr(b):
@@ -274,12 +270,11 @@ def pypdfStr(b):
     """
     if sys.version_info[0] < 3:
         if isinstance(b, unicode):
-            return b.encode('latin-1')
+            return b.encode("latin-1")
         return b
-    else:
-        if isinstance(b, bytes):
-            return b.decode('latin-1')
-        return b
+    if isinstance(b, bytes):
+        return b.decode("latin-1")
+    return b
 
 
 def pypdfOrd(b):
@@ -309,8 +304,7 @@ def pypdfBytearray(b):
     """
     if sys.version_info[0] < 3:
         return b
-    else:
-        return bytearray(b)
+    return bytearray(b)
 
 
 def hexEncode(s):
@@ -324,21 +318,20 @@ def hexEncode(s):
     :rtype: str
     """
     if sys.version_info < (3, 0):
-        return s.encode('hex')
-    else:
-        if isinstance(s, str):
-            s = s.encode("LATIN1")
+        return s.encode("hex")
+    if isinstance(s, str):
+        s = s.encode("LATIN1")
 
-        # The output is in the set of "0123456789ABCDEF" characters. Using the
-        # ASCII decoder is a safeguard against anomalies, albeit unlikely
-        return hexlify(s).decode("ASCII")
+    # The output is in the set of "0123456789ABCDEF" characters. Using the
+    # ASCII decoder is a safeguard against anomalies, albeit unlikely
+    return hexlify(s).decode("ASCII")
 
 
 def hexStr(num):
-    return hex(num).replace('L', '')
+    return hex(num).replace("L", "")
 
 
-WHITESPACES = [pypdfBytes(x) for x in [' ', '\n', '\r', '\t', '\x00']]
+WHITESPACES = [pypdfBytes(x) for x in [" ", "\n", "\r", "\t", "\x00"]]
 
 
 def paethPredictor(left, up, up_left):
@@ -349,10 +342,9 @@ def paethPredictor(left, up, up_left):
 
     if dist_left <= dist_up and dist_left <= dist_up_left:
         return left
-    elif dist_up <= dist_up_left:
+    if dist_up <= dist_up_left:
         return up
-    else:
-        return up_left
+    return up_left
 
 
 def pairs(sequence):
