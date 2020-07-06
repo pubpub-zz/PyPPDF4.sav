@@ -861,14 +861,14 @@ class PdfFileWriter(object):
                         self._objects[idnum - 1] = newobj
 
                         return newobj_ido
-                    except (ValueError, PyPdfError):
-                        # Unable to resolve the Object, returning NullObject
-                        # instead.
-                        warnings.warn(
-                            "Unable to resolve [{}: {}], returning NullObject "
-                            "instead".format(data.__class__.__name__, data)
-                        )
-                        return NullObject()
+                except (ValueError, PyPdfError):
+                    # Unable to resolve the Object, returning NullObject
+                    # instead.
+                    warnings.warn(
+                        "Unable to resolve [{}: {}], returning NullObject "
+                        "instead".format(data.__class__.__name__, data)
+                    )
+                    return NullObject()
                 return newobj
         else:
             return data

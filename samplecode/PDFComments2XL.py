@@ -1,4 +1,3 @@
-            auth,
 #!/usr/bin/python3
 """
    test/demo program tha extract comments from an pdf into a Excel
