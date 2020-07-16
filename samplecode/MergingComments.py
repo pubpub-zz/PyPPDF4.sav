@@ -20,7 +20,7 @@ del sys.argv[0]  # to ignore called program
 displayOutput = ("-d" in sys.argv) or ("idlelib.run" in sys.modules)
 try:
     del sys.argv[sys.argv.index("-d")]
-except:
+except: #pylint: disable=bare-except
     pass
 
 
