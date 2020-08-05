@@ -1,8 +1,30 @@
-from ._version import __version__
-from .generic import *
-from .merger import PdfFileMerger
-from .pagerange import PageRange
-from .pdf import PdfFileReader, PdfFileWriter
+#!/usr/bin/python3
+"""
+PyPDF4
+init
+"""
+
+import sys
+
+from ._version import __version__                                   #pylint: disable=relative-beyond-top-level
+from . import utils                                                 #pylint: disable=relative-beyond-top-level
+from . import generic                                               #pylint: disable=relative-beyond-top-level
+from . import filters                                               #pylint: disable=relative-beyond-top-level
+#from . import pdf                                                   #pylint: disable=relative-beyond-top-level
+from . import pagerange                                             #pylint: disable=relative-beyond-top-level
+from . import merger                                                #pylint: disable=relative-beyond-top-level
+from . import xmp                                                   #pylint: disable=relative-beyond-top-level
+from .generic import (BooleanObject, ArrayObject, IndirectObject,    #pylint: disable=relative-beyond-top-level
+                      FloatObject, NumberObject, NameObject,
+                      create_string_object, createStringObject, TextStringObject,
+                      DictionaryObject, TreeObject,
+                      Destination, PageLabel, Bookmark,)
+from .pdfreader import PdfFileReader                                #pylint: disable=relative-beyond-top-level
+from .pdfwriter import PdfFileWriter                                #pylint: disable=relative-beyond-top-level
+from .pagerange import PageRange                                    #pylint: disable=relative-beyond-top-level
+from .merger import PdfFileMerger                                   #pylint: disable=relative-beyond-top-level
+
+sys.setrecursionlimit(max(10000,sys.getrecursionlimit()))
 
 __all__ = [
     # Basic PyPDF elements
@@ -16,6 +38,7 @@ __all__ = [
     "IndirectObject",
     "FloatObject",
     "NumberObject",
+    "create_string_object",
     "createStringObject",
     "TextStringObject",
     "NameObject",
@@ -31,5 +54,4 @@ __all__ = [
     "filters",
     "merger",
     "pagerange",
-    "xmp",
-]
+    "xmp", ]

@@ -28,12 +28,19 @@
 Utility functions for PDF library.
 """
 from binascii import hexlify
-import sys
+from sys import version_info
 
 try:
     import __builtin__ as builtins
 except ImportError:  # Py3
     import builtins
+
+if version_info < (3, 0):
+    from cStringIO import StringIO                                          #pylint: Python 2.x disable=import-error
+
+    BytesIO = StringIO
+else:
+    from io import StringIO, BytesIO                                        #pylint: used in other modules disable=unused-import
 
 __author__ = "Mathieu Fenniak"
 __author_email__ = "biziqe@mathieu.fenniak.net"
@@ -42,34 +49,36 @@ __author_email__ = "biziqe@mathieu.fenniak.net"
 xrange_fn = getattr(builtins, "xrange", range)
 _basestring = getattr(builtins, "basestring", str)
 
-bytes_type = type(bytes())  # Works the same in Python 2.X and 3.X
-string_type = getattr(builtins, "unicode", str)
-int_types = (int, long) if sys.version_info[0] < 3 else (int,)
+BytesType = type(bytes())  # Works the same in Python 2.X and 3.X
+StringType = getattr(builtins, "unicode", str)
+int_types = (int, long) if version_info[0] < 3 else (int,)                  #pylint: python 2.x disable=undefined-variable
 
 
 # Make basic type tests more consistent
-def isString(s):
+def is_string(s__):
     """Test if arg is a string. Compatible with Python 2 and 3."""
-    return isinstance(s, _basestring)
+    return isinstance(s__, _basestring)
 
 
-def isInt(n):
+def is_int(n__):
     """Test if arg is an int. Compatible with Python 2 and 3."""
-    return isinstance(n, int_types)
+    return isinstance(n__, int_types)
 
 
-def isBytes(b):
+def is_bytes(b__):
     """Test if arg is a bytes instance. Compatible with Python 2 and 3."""
-    return isinstance(b, bytes_type)
+    return isinstance(b__, BytesType)
+isBytes = is_bytes
 
 
 # custom implementation of warnings.formatwarning
-def formatWarning(message, category, filename, lineno, line=None):
+def format_warning(message, category, filename, lineno, line=None):         #pylint: to match warnings API disable=unused-argument
+    """ format warning message """
     file = filename.replace("/", "\\").rsplit("\\", 1)[-1]  # find the file name
     return "%s: %s [%s:%s]\n" % (category.__name__, message, file, lineno)
+formatWarning = format_warning
 
-
-def readUntilWhitespace(stream, maxchars=None):
+def read_until_whitespace(stream, maxchars=None):
     """
     Reads non-whitespace characters and returns them.
     Stops upon encountering whitespace or when maxchars is reached.
@@ -87,9 +96,10 @@ def readUntilWhitespace(stream, maxchars=None):
             break
 
     return txt
+readUntilWhitespace = read_until_whitespace
 
 
-def readNonWhitespace(stream):
+def read_non_whitespace(stream):
     """
     Finds and reads the next non-whitespace character (ignores whitespace).
 
@@ -103,9 +113,9 @@ def readNonWhitespace(stream):
     return tok
 
 
-def skipOverWhitespace(stream):
+def skip_over_whitespace(stream):
     """
-    Similar to ``readNonWhitespace()``, but returns a Boolean if more than
+    Similar to ``read_non_whitespace()``, but returns a Boolean if more than
     one whitespace character was read.
 
     :param stream: a file-like object.
@@ -120,7 +130,8 @@ def skipOverWhitespace(stream):
     return cnt > 1
 
 
-def skipOverComment(stream):
+def skip_over_comment(stream):
+    """ move stream cursor after comment """
     tok = stream.read(1)
     stream.seek(-1, 1)
 
@@ -129,7 +140,7 @@ def skipOverComment(stream):
             tok = stream.read(1)
 
 
-def readUntilRegex(stream, regex, ignore_eof=False):
+def read_until_regex(stream, regex, ignore_eof=False):
     """
     Reads until the regular expression pattern matched (ignore the match)
     Raise PdfStreamError on premature end-of-file.
@@ -145,20 +156,21 @@ def readUntilRegex(stream, regex, ignore_eof=False):
             if ignore_eof:
                 return name
             raise PdfStreamError("Stream has ended unexpectedly")
-        m = regex.search(tok)
-        if m is not None:
-            name += tok[: m.start()]
-            stream.seek(m.start() - len(tok), 1)
+        m__ = regex.search(tok)
+        if m__ is not None:
+            name += tok[: m__.start()]
+            stream.seek(m__.start() - len(tok), 1)
             break
         name += tok
 
     return name
 
 
-class ConvertFunctionsToVirtualList(object):
+class ConvertFunctionsToVirtualList(object):                    #pylint: acceptable disable=useless-object-inheritance
+    """ COMMENTS TO BE ADDED """
     def __init__(self, lengthFunction, getFunction):
-        self.lengthFunction = lengthFunction
-        self.getFunction = getFunction
+        self.lengthFunction = lengthFunction                    #pylint: too hudge change for the moment disable=invalid-name 
+        self.getFunction = getFunction                          #pylint: too hudge change for the moment disable=invalid-name
 
     def __len__(self):
         return self.lengthFunction()
@@ -168,7 +180,7 @@ class ConvertFunctionsToVirtualList(object):
             indices = xrange_fn(*index.indices(len(self)))
             cls = type(self)
             return cls(indices.__len__, lambda idx: self[indices[idx]])
-        if not isInt(index):
+        if not is_int(index):
             raise TypeError("sequence indices must be integers")
 
         len_self = len(self)
@@ -182,169 +194,179 @@ class ConvertFunctionsToVirtualList(object):
         return self.getFunction(index)
 
 
-def RC4Encrypt(key, plaintext):
-    S = list(range(256))
-    j = 0
+def RC4Encrypt(key, plaintext):                                 #pylint: too hudge change for the moment disable=invalid-name
+    """ encryption basic call """
+    s__ = list(range(256))
+    j__ = 0
 
     for i in range(256):
-        j = (j + S[i] + pypdfOrd(key[i % len(key)])) % 256
-        S[i], S[j] = S[j], S[i]
+        j__ = (j__ + s__[i] + pypdfOrd(key[i % len(key)])) % 256
+        s__[i], s__[j__] = s__[j__], s__[i]
 
-    i, j = 0, 0
+    i, j__ = 0, 0
     retval = []
 
-    for x in range(len(plaintext)):
+    for x__ in range(len(plaintext)):                           #pylint: disable=consider-using-enumerate
         i = (i + 1) % 256
-        j = (j + S[i]) % 256
-        S[i], S[j] = S[j], S[i]
-        t = S[(S[i] + S[j]) % 256]
-        retval.append(pypdfBytes(chr(pypdfOrd(plaintext[x]) ^ t)))
+        j__ = (j__ + s__[i]) % 256
+        s__[i], s__[j__] = s__[j__], s__[i]
+        t__ = s__[(s__[i] + s__[j__]) % 256]
+        retval.append(pypdfBytes(chr(pypdfOrd(plaintext[x__]) ^ t__)))
 
     return pypdfBytes("").join(retval)
 
 
-def matrixMultiply(a, b):
-    return [
-        [sum([float(i) * float(j) for i, j in zip(row, col)]) for col in zip(*b)]
-        for row in a
-    ]
+def matrix_multiply(a__, b__):
+    """ matrix multiplication """
+    return [[sum([float(i__) * float(j__) for i__, j__ in zip(row, col)]) for col in zip(*b__)]
+            for row in a__]
+matrixMultiply = matrix_multiply
 
 
 class PyPdfError(Exception):
-    pass
+    """ Exception definition """
 
 
 class PdfReadError(PyPdfError):
-    pass
+    """ Exception definition """
 
 
 class PageSizeNotDefinedError(PyPdfError):
-    pass
+    """ Exception definition """
 
 
 class PdfReadWarning(UserWarning):
-    pass
+    """ Exception definition """
 
 
 class PdfStreamError(PdfReadError):
-    pass
+    """ Exception definition """
 
 
-def pypdfBytes(s):
+def pypdf_bytes(s__):
     """
-    :type s: Union[bytes, str, int, unicode]
+    :type s__: Union[bytes, str, int, unicode]
     :rtype: bytes
     """
-    if sys.version_info[0] < 3:
-        if isinstance(s, int):
-            return chr(s)
-        if isinstance(s, bytes):
-            return s
-        return s.encode("latin-1")
-    if isinstance(s, int):
-        return bytes([s])
-    if isinstance(s, bytes):
-        return s
-    return s.encode("latin-1")
+    if version_info[0] < 3:
+        if isinstance(s__, int):
+            return chr(s__)
+        if isinstance(s__, bytes):
+            return s__
+        return s__.encode("latin-1")
+    if isinstance(s__, int):
+        return bytes([s__])
+    if isinstance(s__, bytes):
+        return s__
+    return s__.encode("latin-1")
+pypdfBytes = pypdf_bytes
 
 
-def pypdfUnicode(s):
+def pypdf_unicode(s__):
     """
-    :type s: Union[bytes, str, unicode]
+    :type s__: Union[bytes, str, unicode]
     :returns: ``unicode`` for Python 2, ``str`` for Python 3.
     :rtype: Union[str, unicode]
     """
-    if sys.version_info[0] < 3:
-        if isinstance(s, unicode):
-            return s
-        return unicode(s, "unicode_escape")
-    if isinstance(s, str):
-        return s
-    return s.decode("unicode_escape")
+    if version_info[0] < 3:
+        if isinstance(s__, unicode):              #pylint: disable=undefined-variable
+            return s__
+        return unicode(s__, "unicode_escape")     #pylint: disable=undefined-variable
+    if isinstance(s__, str):
+        return s__
+    return s__.decode("unicode_escape")
+pypdfUnicode = pypdf_unicode
 
 
-def pypdfStr(b):
+def pypdf_str(b__):
     """
-    :type b: Union[bytes, str, unicode]
+    :type b__: Union[bytes, str, unicode]
     :rtype: str
     """
-    if sys.version_info[0] < 3:
-        if isinstance(b, unicode):
-            return b.encode("latin-1")
-        return b
-    if isinstance(b, bytes):
-        return b.decode("latin-1")
-    return b
+    if version_info[0] < 3:
+        if isinstance(b__, unicode):              #pylint: disable=undefined-variable
+            return b__.encode("latin-1")
+        return b__
+    if isinstance(b__, bytes):
+        return b__.decode("latin-1")
+    return b__
 
 
-def pypdfOrd(b):
+def pypdf_ord(b__):
     """
-    :type b: Union[int, bytes, str, unicode]
+    :type b__: Union[int, bytes, str, unicode]
     :rtype: int
     """
-    if isinstance(b, int):
-        return b
-    return ord(b)
+    if isinstance(b__, int):
+        return b__
+    return ord(b__)
+pypdfOrd = pypdf_ord
 
 
-def pypdfChr(c):
+def pypdf_chr(c__):
     """
     :type c: Union[int, bytes, str, unicode]
     :rtype: str
     """
-    if isinstance(c, int):
-        return chr(c)
-    return chr(ord(c))
+    if isinstance(c__, int):
+        return chr(c__)
+    return chr(ord(c__))
 
 
-def pypdfBytearray(b):
+def pypdf_bytearray(b__):
     """
     Abstracts the conversion from a ``bytes`` variable to a ``bytearray`` value
     over versions 2.7.x and 3 of Python.
     """
-    if sys.version_info[0] < 3:
-        return b
-    return bytearray(b)
+    if version_info[0] < 3:
+        return b__
+    return bytearray(b__)
+pypdfBytearray = pypdf_bytearray
 
 
-def hexEncode(s):
+def hex_encode(s__):
     """
     Abstracts the conversion from a LATIN 1 string to an hex-valued string
     representation of the former over versions 2.7.x and 3 of Python.
 
-    :param str s: a ``str`` to convert from LATIN 1 to an hexadecimal string
+    :param str s__: a ``str`` to convert from LATIN 1 to an hexadecimal string
         representation.
     :return: a hex-valued string, e.g. ``hexEncode("$A'") == "244127"``.
     :rtype: str
     """
-    if sys.version_info < (3, 0):
-        return s.encode("hex")
-    if isinstance(s, str):
-        s = s.encode("LATIN1")
+    if version_info < (3, 0):
+        return s__.encode("hex")
+    if isinstance(s__, str):
+        s__ = s__.encode("LATIN1")
 
     # The output is in the set of "0123456789ABCDEF" characters. Using the
     # ASCII decoder is a safeguard against anomalies, albeit unlikely
-    return hexlify(s).decode("ASCII")
+    return hexlify(s__).decode("ASCII")
+hexEncode = hex_encode
 
 
-def hexStr(num):
+def hex_str(num):
+    """ TO BE COMPLETED """
     return hex(num).replace("L", "")
+hexStr = hex_str
 
 
 WHITESPACES = [pypdfBytes(x) for x in [" ", "\n", "\r", "\t", "\x00"]]
 
 
-def paethPredictor(left, up, up_left):
-    p = left + up - up_left
-    dist_left = abs(p - left)
-    dist_up = abs(p - up)
-    dist_up_left = abs(p - up_left)
+def paeth_predictor(left, up_, up_left):
+    """ TO BE COMPLETED """
+    p__ = left + up_ - up_left
+    dist_left = abs(p__ - left)
+    dist_up = abs(p__ - up_)
+    dist_up_left = abs(p__ - up_left)
 
     if dist_left <= dist_up and dist_left <= dist_up_left:
         return left
     if dist_up <= dist_up_left:
-        return up
+        return up_
     return up_left
+paethPredictor = paeth_predictor
 
 
 def pairs(sequence):

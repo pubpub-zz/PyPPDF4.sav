@@ -35,17 +35,18 @@ import base64
 import struct
 from sys import version_info
 
-from . import generic
-from .generic import *
-from .utils import PdfReadError, pypdfOrd, paethPredictor,PdfStreamError
+from .utils import PdfReadError, pypdfOrd, paethPredictor, PdfStreamError, BytesIO  #pylint: disable=relative-beyond-top-level
+from .generic import NameObject                                                     #pylint: disable=relative-beyond-top-level
 
 try:
     import zlib
 
     def decompress(data):
+        """ data decompression """
         return zlib.decompress(data)
 
     def compress(data):
+        """ data compression """
         return zlib.compress(data)
 
 
@@ -73,7 +74,7 @@ except ImportError:
         return retval
 
     def _read_bytes(stream):
-        ms = IO.MemoryStream()
+        ms_ = IO.MemoryStream()
         buf = Array.CreateInstance(System.Byte, 2048)
 
         while True:
@@ -81,38 +82,39 @@ except ImportError:
 
             if these_bytes == 0:
                 break
-            else:
-                ms.Write(buf, 0, these_bytes)
+            ms_.Write(buf, 0, these_bytes)
 
-        retval = ms.ToArray()
-        ms.Close()
+        retval = ms_.ToArray()
+        ms_.Close()
 
         return retval
 
     def decompress(data):
+        """ data decompression """
         these_bytes = _string_to_bytearr(data)
-        ms = IO.MemoryStream()
-        ms.Write(bytes, 0, these_bytes.Length)
-        ms.Position = 0  # fseek 0
-        gz = IO.Compression.DeflateStream(ms, IO.Compression.CompressionMode.Decompress)
-        these_bytes = _read_bytes(gz)
+        ms_ = IO.MemoryStream()
+        ms_.Write(bytes, 0, these_bytes.Length)
+        ms_.Position = 0  # fseek 0
+        gz_ = IO.Compression.DeflateStream(ms_, IO.Compression.CompressionMode.Decompress)
+        these_bytes = _read_bytes(gz_)
         retval = _bytearr_to_string(these_bytes)
-        gz.Close()
+        gz_.Close()
 
         return retval
 
     def compress(data):
+        """ data compression """
         these_bytes = _string_to_bytearr(data)
-        ms = IO.MemoryStream()
-        gz = IO.Compression.DeflateStream(
-            ms, IO.Compression.CompressionMode.Compress, True
+        ms_ = IO.MemoryStream()
+        gz_ = IO.Compression.DeflateStream(
+            ms_, IO.Compression.CompressionMode.Compress, True
         )
-        gz.Write(these_bytes, 0, these_bytes.Length)
-        gz.Close()
-        ms.Position = 0  # fseek 0
-        these_bytes = ms.ToArray()
+        gz_.Write(these_bytes, 0, these_bytes.Length)
+        gz_.Close()
+        ms_.Position = 0  # fseek 0
+        these_bytes = ms_.ToArray()
         retval = _bytearr_to_string(these_bytes)
-        ms.Close()
+        ms_.Close()
 
         return retval
 
@@ -121,26 +123,32 @@ __author__ = "Mathieu Fenniak"
 __author_email__ = "biziqe@mathieu.fenniak.net"
 
 
-class FlateCodec(object):
+class FlateCodec(object):   #pylint: for Py 2.x disable=useless-object-inheritance
+    """
+    TODO: Documentation
+    """
     @staticmethod
-    def encode(data, decodeParms=None):
+    def encode(data, decode_params=None):   #pylint: disable=unused-argument
+        """
+        data encoding
+        """
         return compress(data)
 
     # pylint: disable=too-many-locals, too-many-branches
     @staticmethod
-    def decode(data, decodeParms=None):
+    def decode(data, decode_params=None):
         """
         :param data: flate-encoded data.
-        :param decodeParms: a dictionary of parameter values.
+        :param decode_params: a dictionary of parameter values.
         :return: the flate-decoded data.
         :rtype: bytes
         """
         data = decompress(data)
         predictor = 1
 
-        if decodeParms:
+        if decode_params:
             try:
-                predictor = decodeParms.get("/Predictor", 1)
+                predictor = decode_params.get("/Predictor", 1)
             except AttributeError:
                 pass  # Usually an array with a null object was read
 
@@ -148,7 +156,7 @@ class FlateCodec(object):
         if predictor != 1:
             # The /Columns param. has 1 as the default value; see ISO 32000,
             # §7.4.4.3 LZWDecode and FlateDecode Parameters, Table 8
-            columns = decodeParms.get("/Columns", 1)
+            columns = decode_params.get("/Columns", 1)
 
             # PNG prediction:
             if 10 <= predictor <= 15:
@@ -163,39 +171,39 @@ class FlateCodec(object):
                         pypdfOrd(x)
                         for x in data[(row * row_length) : ((row + 1) * row_length)]
                     ]
-                    filterByte = rowdata[0]
+                    filter_byte = rowdata[0]
 
-                    if filterByte == 0:
+                    if filter_byte == 0:
                         pass
-                    elif filterByte == 1:
+                    elif filter_byte == 1:
                         for i in range(2, row_length):
                             rowdata[i] = (rowdata[i] + rowdata[i - 1]) % 256
-                    elif filterByte == 2:
+                    elif filter_byte == 2:
                         for i in range(1, row_length):
                             rowdata[i] = (rowdata[i] + prev_rowdata[i]) % 256
-                    elif filterByte == 3:
+                    elif filter_byte == 3:
                         for i in range(1, row_length):
                             left = rowdata[i - 1] if i > 1 else 0
                             floor = math.floor(left + prev_rowdata[i]) / 2
                             rowdata[i] = (rowdata[i] + int(floor)) % 256
-                    elif filterByte == 4:
+                    elif filter_byte == 4:
                         for i in range(1, row_length):
                             left = rowdata[i - 1] if i > 1 else 0
-                            up = prev_rowdata[i]
+                            up_ = prev_rowdata[i]
                             up_left = prev_rowdata[i - 1] if i > 1 else 0
-                            paeth = paethPredictor(left, up, up_left)
+                            paeth = paethPredictor(left, up_, up_left)
                             rowdata[i] = (rowdata[i] + paeth) % 256
                     else:
                         # Unsupported PNG filter
-                        raise PdfReadError("Unsupported PNG filter %r" % filterByte)
+                        raise PdfReadError("Unsupported PNG filter %r" % filter_byte)
 
                     prev_rowdata = rowdata
 
-                    for d in rowdata[1:]: ##ppZZ ???? err in latest version
+                    for d__ in rowdata[1:]: ##ppZZ ???? err in latest version
                         if version_info < (3, 0):
-                            output.write(chr(d))
+                            output.write(chr(d__))
                         else:
-                            output.write(bytes([d]))
+                            output.write(bytes([d__]))
 
                 data = output.getvalue()
             else:
@@ -205,18 +213,19 @@ class FlateCodec(object):
         return data
 
 
-class ASCIIHexCodec(object):
+class ASCIIHexCodec(object):        #pylint: for Py 2.x disable=useless-object-inheritance
     """
         The ASCIIHexCodec filter decodes data that has been encoded in ASCII
         hexadecimal form into a base-7 ASCII format.
     """
 
     @staticmethod
-    def encode(data, decodeParms=None):
+    def encode(data, decode_params=None):
+        """ encode data """
         raise NotImplementedError()
 
     @staticmethod
-    def decode(data, decodeParms=None):
+    def decode(data, decode_params=None):       #pylint: disable=unused-argument
         """
         :param data: a str sequence of hexadecimal-encoded values to be
             converted into a base-7 ASCII string
@@ -227,8 +236,8 @@ class ASCIIHexCodec(object):
         hex_pair = ""
         eod_found = False
 
-        for c in data:
-            if c == ">":
+        for c__ in data:
+            if c__ == ">":
                 # If the filter encounters the EOD marker after reading an odd
                 # number of hexadecimal digits, it shall behave as if a 0
                 # (zero) followed the last digit - from ISO 32000 specification
@@ -239,10 +248,10 @@ class ASCIIHexCodec(object):
 
                 eod_found = True
                 break
-            elif c.isspace():
+            if c__.isspace():
                 continue
 
-            hex_pair += c
+            hex_pair += c__
 
             if len(hex_pair) == 2:
                 retval += chr(int(hex_pair, base=16))
@@ -257,13 +266,13 @@ class ASCIIHexCodec(object):
 
 
 # pylint: disable=too-few-public-methods
-class LZWCodec(object):
+class LZWCodec(object):             #pylint: for Py 2.x disable=useless-object-inheritance
     """
     For a reference of the LZW algorithm consult ISO 32000, section 7.4.4 or
     Section 13 of "TIFF 6.0 Specification" for a more detailed discussion.
     """
 
-    class Encoder(object):
+    class Encoder(object):          #pylint: for Py 2.x disable=useless-object-inheritance
         """
         ``LZWCodec.Encoder`` is primarily employed for testing purposes and
         its implementation doesn't (yet) cover all the little facets present in
@@ -292,7 +301,7 @@ class LZWCodec(object):
             # The location of the next bit we are going to write to
             self.bitpos = 0
 
-            self._resetTable()
+            self._reset_table()
 
         def encode(self):
             """
@@ -301,31 +310,31 @@ class LZWCodec(object):
             """
             self.output = list()
             buffer = bytes()
-            self._writeCode(256)
+            self._write_code(256)
 
-            for b in self.data:
+            for b__ in self.data:
                 # If we iterate on a bytes instance under Python 3, we get int
                 # rather than bytes values, which we need to convert
                 if version_info > (3, 0):
-                    b = bytes([b])
+                    b__ = bytes([b__])
 
-                if buffer + b in self.table:
-                    buffer += b
+                if buffer + b__ in self.table:
+                    buffer += b__
                 else:
                     # Write the code of buffer to the codetext
-                    self._writeCode(self.table[buffer])
-                    self._addCodeToTable(buffer + b)
+                    self._write_code(self.table[buffer])
+                    self._add_code_to_table(buffer + b__)
 
-                    buffer = b
+                    buffer = b__
 
-            self._writeCode(self.table[buffer])
-            self._writeCode(257)
+            self._write_code(self.table[buffer])
+            self._write_code(257)
 
             # This results in an automatic assertion of the values of
             # self.result, since for each v one of them, 0 <= v <= 255
             return bytearray(self.output).decode("LATIN1")
 
-        def _resetTable(self):
+        def _reset_table(self):
             """
             Brings the pattern-to-code-value table to default values.
             """
@@ -340,7 +349,7 @@ class LZWCodec(object):
             self.table[256] = len(self.table)
             self.table[257] = len(self.table)
 
-        def _writeCode(self, code):
+        def _write_code(self, code):
             """
             Tricky implementation method that serves in the conversion from
             usually higher-than-eight-bit values (input in ``code`` as
@@ -350,36 +359,39 @@ class LZWCodec(object):
             :param code: an integer value whose bit stream will be serialized
                 inside ``self.result``.
             """
-            bytesAlloc = int(
+            bytes_alloc = int(
                 math.ceil(float(self.bitpos + self.bitspercode) / 8)
             ) - len(self.output)
-            self.output.extend([0] * bytesAlloc)
-            bitsWritten = 0
+            self.output.extend([0] * bytes_alloc)
+            bits_written = 0
             relbitpos = self.bitpos % 8
             bytepos = int(math.floor(self.bitpos / 8))
 
-            while (self.bitspercode - bitsWritten) > 0:
+            while (self.bitspercode - bits_written) > 0:
                 self.output[bytepos] |= (
-                    ((code << bitsWritten) >> (self.bitspercode - 8)) & 0xFF
+                    ((code << bits_written) >> (self.bitspercode - 8)) & 0xFF
                 ) >> relbitpos
 
-                bitsWritten += min(8 - relbitpos, self.bitspercode - bitsWritten)
-                relbitpos = (self.bitpos + bitsWritten) % 8
-                bytepos = int(math.floor((self.bitpos + bitsWritten) / 8))
+                bits_written += min(8 - relbitpos, self.bitspercode - bits_written)
+                relbitpos = (self.bitpos + bits_written) % 8
+                bytepos = int(math.floor((self.bitpos + bits_written) / 8))
 
             self.bitpos += self.bitspercode
 
-        def _addCodeToTable(self, value):
+        def _add_code_to_table(self, value):
             if len(self.table) >= self.MAX_ENTRIES:
-                self._writeCode(256)
-                self._resetTable()
+                self._write_code(256)
+                self._reset_table()
             elif len(self.table) >= 2 ** self.bitspercode:
                 self.bitspercode += 1
 
             self.table[value] = len(self.table)
 
     # pylint: disable=too-many-instance-attributes
-    class Decoder(object):
+    class Decoder(object):      #pylint: disable=useless-object-inheritance
+        """
+        TODO : documentation to be added
+        """
         MAX_ENTRIES = 2 ** 12
 
         CLEARDICT = 256
@@ -404,7 +416,7 @@ class LZWCodec(object):
                 else:
                     self.dict[i] = bytes([i])
 
-            self._resetDict()
+            self._reset_dict()
 
         def decode(self):
             """
@@ -414,47 +426,47 @@ class LZWCodec(object):
             :rtype: bytes
             """
             # TO-DO Make return value type bytes, as instructed by ISO 32000
-            cW = self.CLEARDICT
+            c_w = self.CLEARDICT
             output = b""
 
             while True:
-                pW = cW
-                cW = self._readCode()
+                p_w = c_w
+                c_w = self._read_code()
 
-                if cW == -1:
+                if c_w == -1:
                     raise PdfReadError("Missed the stop code in during LZW decoding")
-                if cW == self.STOP:
+                if c_w == self.STOP:
                     break
-                elif cW == self.CLEARDICT:
-                    self._resetDict()
-                elif pW == self.CLEARDICT:
-                    output += self.dict[cW]
+                if c_w == self.CLEARDICT:
+                    self._reset_dict()
+                elif p_w == self.CLEARDICT:
+                    output += self.dict[c_w]
                 else:
-                    if cW < self.dictindex:
-                        output += self.dict[cW]
+                    if c_w < self.dictindex:
+                        output += self.dict[c_w]
 
                         if version_info > (3, 0):
-                            p = self.dict[pW] + bytes([self.dict[cW][0]])
+                            p__ = self.dict[p_w] + bytes([self.dict[c_w][0]])
                         else:
-                            p = self.dict[pW] + self.dict[cW][0]
+                            p__ = self.dict[p_w] + self.dict[c_w][0]
 
-                        self._addCodeToTable(p)
+                        self._add_code_to_table(p__)
                     else:
                         if version_info > (3, 0):
-                            p = self.dict[pW] + bytes([self.dict[pW][0]])
+                            p__ = self.dict[p_w] + bytes([self.dict[p_w][0]])
                         else:
-                            p = self.dict[pW] + self.dict[pW][0]
+                            p__ = self.dict[p_w] + self.dict[p_w][0]
 
-                        output += p
-                        self._addCodeToTable(p)
+                        output += p__
+                        self._add_code_to_table(p__)
 
             return output
 
-        def _resetDict(self):
+        def _reset_dict(self):
             self.dictindex = 258
             self.bitspercode = 9
 
-        def _readCode(self):
+        def _read_code(self):
             toread = self.bitspercode
             value = 0
 
@@ -481,7 +493,7 @@ class LZWCodec(object):
 
             return value
 
-        def _addCodeToTable(self, data):
+        def _add_code_to_table(self, data):
             self.dict[self.dictindex] = data
             self.dictindex += 1
 
@@ -489,19 +501,19 @@ class LZWCodec(object):
                 self.bitspercode += 1
 
     @staticmethod
-    def encode(data, decodeParms=None):
+    def encode(data, decode_params=None):                   #pylint: disable=unused-argument
         """
         :param data: ``str`` or ``bytes`` input to encode.
-        :param decodeParms:
+        :param decode_params:
         :return: encoded LZW text.
         """
         return LZWCodec.Encoder(data).encode()
 
     @staticmethod
-    def decode(data, decodeParms=None):
+    def decode(data, decode_params=None):                   #pylint: disable=unused-argument
         """
         :param data: ``bytes`` or ``str`` text to decode.
-        :param decodeParms: a dictionary of parameter values.
+        :param decode_params: a dictionary of parameter values.
         :return: decoded data.
         :rtype: bytes
         """
@@ -509,14 +521,14 @@ class LZWCodec(object):
 
 
 # pylint: disable=too-few-public-methods
-class ASCII85Codec(object):
+class ASCII85Codec(object):                     #pylint: for Py 2.x disable=useless-object-inheritance
     """
     Decodes string ASCII85-encoded data into a byte format.
     """
 
     # pylint: disable=too-many-branches, too-many-statements, too-many-locals
     @staticmethod
-    def encode(data, decodeParms=None):
+    def encode(data, decode_params=None):       #pylint: disable=unused-argument
         """
         Encodes chunks of 4-byte sequences of textual or bytes data according
         to the base-85 ASCII encoding algorithm.
@@ -525,57 +537,56 @@ class ASCII85Codec(object):
         :return: ASCII85-encoded data in bytes format (equal to str in Python
             2).
         """
-        if sys.version_info[0] < 3:
+        if version_info[0] < 3:
             result = str()
-            filler = "\x00" if type(data) is str else b"\x00"
+            filler = "\x00" if isinstance(data, str) else b"\x00"
 
-            if type(data) not in (str, bytes):
+            #used to be :if type(data) not in (str, bytes):
+            if not isinstance(data, (str, bytes)):
                 raise TypeError(
                     "Expected str or bytes type for data, got %s instead" % type(data)
                 )
 
             for group in range(int(math.ceil(len(data) / 4.0))):
-                decimalRepr = 0
+                decimal_repr = 0
                 ascii85 = str()
-                groupWidth = min(4, len(data) - 4 * group)
+                group_width = min(4, len(data) - 4 * group)
 
-                if groupWidth < 4:
-                    data = data + (4 - groupWidth) * filler
+                if group_width < 4:
+                    data = data + (4 - group_width) * filler
 
                 for byte in range(4):
-                    decimalRepr += pypdfOrd(data[4 * group + byte]) 
-                                       << 8 * (4 - byte - 1)
+                    decimal_repr += pypdfOrd(data[4 * group + byte]) << 8 * (4 - byte - 1)
 
                 # If all bytes are 0, we turn them into a single 'z' character
-                if decimalRepr == 0 and groupWidth == 4:
+                if decimal_repr == 0 and group_width == 4:
                     ascii85 = "z"
                 else:
-                    for i in range(5):
-                        ascii85 = chr(decimalRepr % 85 + 33) + ascii85
-                        decimalRepr = int(decimalRepr / 85.0)
+                    for i__ in range(5):                    #pylint:   disable=unused-variable
+                        ascii85 = chr(decimal_repr % 85 + 33) + ascii85
+                        decimal_repr = int(decimal_repr / 85.0)
 
                 # In case of a partial group of four bytes, the standard says:
                 # «Finally, it shall write only the first n + 1 characters of the
                 # resulting group of 5.» - ISO 32000 (2008), sec. 7.4.3
-                result += ascii85[: min(5, groupWidth + 1)]
+                result += ascii85[: min(5, group_width + 1)]
 
             return ("<~" + result + "~>").encode("LATIN1")
-        else:
-            return base64.a85encode(data, adobe=True)
+        return base64.a85encode(data, adobe=True)   # else Python version 3.x
 
     @staticmethod
-    def decode(data, decodeParms=None):
+    def decode(data, decode_params=None):           #pylint: disable=unused-argument
         """
         Decodes binary (bytes or str) data previously encoded in ASCII85.
 
         :param data: a str or bytes sequence of ASCII85-encoded characters.
         :return: bytes for Python 3, str for Python 2.
         """
-        if sys.version_info[0] < 3:
-            group_index = b = 0
+        if version_info[0] < 3:
+            group_index = b__ = 0
             out = bytearray()
 
-            if isinstance(data, unicode):
+            if isinstance(data, unicode):       #pylint: disable=undefined-variable
                 try:
                     data = data.encode("ascii")
                 except UnicodeEncodeError:
@@ -599,20 +610,20 @@ class ASCII85Codec(object):
             if not data.endswith("~>"):
                 raise ValueError("Ascii85 encoded byte sequences must end with '~>'")
 
-            for index, c in enumerate(data):
+            for index, c__ in enumerate(data):
                 # Ignore whitespace characters.
-                if not c.strip(" \n\r\t\v"):
+                if not c__.strip(" \n\r\t\v"):
                     continue
-                byte = ord(c)
+                byte = ord(c__)
 
                 # 33 == ord('!') and 117 == ord('u')
                 if 33 <= byte <= 117:
                     group_index += 1
-                    b = b * 85 + (byte - 33)
+                    b__ = b__ * 85 + (byte - 33)
 
                     if group_index == 5:
-                        out += struct.pack(b">L", b)
-                        group_index = b = 0
+                        out += struct.pack(b">L", b__)
+                        group_index = b__ = 0
                 # 122 == ord('z')
                 elif byte == 122:
                     if group_index:
@@ -622,63 +633,83 @@ class ASCII85Codec(object):
                 elif byte == 126 and data[index + 1] == ">":
                     if group_index:
                         for _ in range(5 - group_index):
-                            b = b * 85 + 84
-                        out += struct.pack(b">L", b)[: group_index - 1]
+                            b__ = b__ * 85 + 84
+                        out += struct.pack(b">L", b__)[: group_index - 1]
 
                     break
                 else:
-                    raise ValueError("Value '%c' not recognized" % c)
+                    raise ValueError("Value '%c' not recognized" % c__)
 
             return bytes(out)
-        else:
-            return base64.a85decode(data, adobe=True)
+        return base64.a85decode(data, adobe=True) #else if python version 3.x
 
 
 # pylint: disable=too-few-public-methods
-class DCTCodec(object):
+class DCTCodec(object):     #pylint: for Py 2.x disable=useless-object-inheritance
+    """
+    TODO: documentation
+    """
     @staticmethod
-    def encode(data, decodeParms=None):
+    def encode(data, decode_params=None):
+        """
+        encode data
+        """
         raise NotImplementedError()
 
     @staticmethod
-    def decode(data, decodeParms=None):
+    def decode(data, decode_params=None):      #pylint: disable=unused-argument
         """
         TO-DO Implement this filter.
         """
         return data
 
 
-class JPXCodec(object):  # pylint: disable=too-few-public-methods
+class JPXCodec(object):  #pylint: for Py 2.x disable=useless-object-inheritance disable=too-few-public-methods
+    """
+    TODO : documentation
+    """
     @staticmethod
-    def encode(data, decodeParms=None):
+    def encode(data, decode_params=None):       #pylint: disable=unused-argument
+        """
+        not implemented
+        """
         raise NotImplementedError()
 
     @staticmethod
-    def decode(data, decodeParms=None):
+    def decode(data, decode_params=None):       #pylint: disable=unused-argument
         """
         TO-DO Implement this filter.
         """
         return data
 
 
-class CCITTFaxCodec(object):  # pylint: disable=too-few-public-methods
+class CCITTFaxCodec(object):  #pylint: for Py 2.x disable=useless-object-inheritance disable=too-few-public-methods
+    """
+    TODO : documentation
+    """
     @staticmethod
-    def encode(data, decodeParms=None):
+    def encode(data, decode_params=None):
+        """
+        not implememented
+        """
         raise NotImplementedError()
 
     @staticmethod
-    def decode(data, decodeParms=None, height=0):
-        if decodeParms:
-            if decodeParms.get("/K", 1) == -1:
-                CCITTgroup = 4
+    def decode(data, decode_params=None, height=0):
+        """
+        decode data
+        """
+        if decode_params:
+            if decode_params.get("/K", 1) == -1:
+                ccitt_group = 4
             else:
-                CCITTgroup = 3
+                ccitt_group = 3
 
-        width = decodeParms["/Columns"]
-        imgSize = len(data)
-        tiffHeaderStruct = "<" + "2s" + "h" + "l" + "h" + "hhll" * 8 + "h"
-        tiffHeader = struct.pack(
-            tiffHeaderStruct,
+        width = decode_params["/Columns"]
+        img_size = len(data)
+        tiff_header_struct = "<" + "2s" + "h" + "l" + "h" + "hhll" * 8 + "h"
+        tiff_header = struct.pack(
+            tiff_header_struct,
             b"II",  # Byte order indication: Little endian
             42,  # Version number (always 42)
             8,  # Offset to first IFD
@@ -699,7 +730,7 @@ class CCITTFaxCodec(object):  # pylint: disable=too-few-public-methods
             259,
             3,
             1,
-            CCITTgroup,
+            ccitt_group,
             262,
             3,
             1,
@@ -708,7 +739,7 @@ class CCITTFaxCodec(object):  # pylint: disable=too-few-public-methods
             273,
             4,
             1,
-            struct.calcsize(tiffHeaderStruct),
+            struct.calcsize(tiff_header_struct),
             278,
             4,
             1,
@@ -716,24 +747,24 @@ class CCITTFaxCodec(object):  # pylint: disable=too-few-public-methods
             279,
             4,
             1,
-            imgSize,  # StripByteCounts, LONG, 1, size of image
+            img_size,  # StripByteCounts, LONG, 1, size of image
             0,  # last IFD
         )
 
         # TO-DO Finish implementing (the code above only adds header infos.)
 
-        return tiffHeader + data
+        return tiff_header + data
 
 
 # pylint: disable=too-many-branches
-def decodeStreamData(stream):
+def decode_stream_data(stream):
     """
     :param stream: ``EncodedStreamObject`` instance.
     :return: decoded data from the encoded stream.
     """
     filters = stream.get("/Filter", ())
 
-    if filters and not isinstance(filters[0], generic.NameObject):
+    if filters and not isinstance(filters[0], NameObject):
         # we have a single filter instance
         filters = (filters,)
 
@@ -741,26 +772,26 @@ def decodeStreamData(stream):
 
     # If there is not data to decode we should not try to decode the data.
     if data:
-        for filterType in filters:
-            if filterType in ["/FlateDecode", "/Fl"]:
+        for filter_type in filters:
+            if filter_type in ["/FlateDecode", "/Fl"]:
                 data = FlateCodec.decode(data, stream.get("/DecodeParms"))
-            elif filterType in ["/ASCIIHexDecode", "/AHx"]:
+            elif filter_type in ["/ASCIIHexDecode", "/AHx"]:
                 data = ASCIIHexCodec.decode(data)
-            elif filterType in ["/LZWDecode", "/LZW"]:
+            elif filter_type in ["/LZWDecode", "/LZW"]:
                 data = LZWCodec.decode(data, stream.get("/DecodeParms"))
-            elif filterType in ["/ASCII85Decode", "/A85"]:
+            elif filter_type in ["/ASCII85Decode", "/A85"]:
                 data = ASCII85Codec.decode(data, stream.get("/DecodeParms"))
-            elif filterType == "/DCTDecode":
+            elif filter_type == "/DCTDecode":
                 data = DCTCodec.decode(data)
-            elif filterType == "/JPXDecode":
+            elif filter_type == "/JPXDecode":
                 data = JPXCodec.decode(data)
-            elif filterType == "/CCITTFaxDecode":
+            elif filter_type == "/CCITTFaxDecode":
                 height = stream.get("/Height", ())
                 data = CCITTFaxCodec.decode(data, stream.get("/DecodeParms"), height)
-            elif filterType == "/Crypt":
-                decodeParams = stream.get("/DecodeParams", {})
+            elif filter_type == "/Crypt":
+                decode_params = stream.get("/DecodeParams", {})
 
-                if "/Name" not in decodeParams and "/Type" not in decodeParams:
+                if "/Name" not in decode_params and "/Type" not in decode_params:
                     pass
                 else:
                     raise NotImplementedError(
@@ -768,6 +799,6 @@ def decodeStreamData(stream):
                     )
             else:
                 # Unsupported filter
-                raise NotImplementedError("unsupported filter %s" % filterType)
+                raise NotImplementedError("unsupported filter %s" % filter_type)
 
     return data

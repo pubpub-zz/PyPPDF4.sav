@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 """
 Representation and utils for ranges of PDF file pages.
 
@@ -9,7 +9,7 @@ see https://github.com/claird/PyPDF4/blob/master/LICENSE.md
 
 import re
 
-from .utils import isString
+from .utils import is_string    #pylint: disable=relative-beyond-top-level
 
 _INT_RE = r"(0|-?[1-9]\d*)"  # A decimal int, don't allow "-0".
 PAGE_RANGE_RE = "^({int}|({int}?(:{int}?(:{int}?)?)))$".format(int=_INT_RE)
@@ -17,7 +17,8 @@ PAGE_RANGE_RE = "^({int}|({int}?(:{int}?(:{int}?)?)))$".format(int=_INT_RE)
 
 
 class ParseError(Exception):
-    pass
+    """ Exception class """
+    pass                        #pylint:  disable=unnecessary-pass
 
 
 PAGE_RANGE_HELP = """Remember, page indices start with zero.
@@ -34,7 +35,7 @@ PAGE_RANGE_HELP = """Remember, page indices start with zero.
 """
 
 
-class PageRange(object):
+class PageRange(object):                #pylint: for Py 2.x disable=useless-object-inheritance
     """
     A slice-like representation of a range of page indices,
         i.e. page numbers, only starting at zero.
@@ -70,7 +71,7 @@ class PageRange(object):
             self._slice = arg._to_slice()
             return
 
-        match = isString(arg) and re.match(PAGE_RANGE_RE, arg)
+        match = is_string(arg) and re.match(PAGE_RANGE_RE, arg)
 
         if not match:
             raise ParseError(arg)
@@ -90,7 +91,7 @@ class PageRange(object):
     def valid(this_input):
         """ True if input is a valid initializer for a PageRange. """
         return isinstance(this_input, (slice, PageRange)) or (
-            isString(this_input) and bool(re.match(PAGE_RANGE_RE, this_input))
+            is_string(this_input) and bool(re.match(PAGE_RANGE_RE, this_input))
         )
 
     def _to_slice(self):
@@ -124,7 +125,7 @@ class PageRange(object):
 PAGE_RANGE_ALL = PageRange(":")  # The range of all pages.
 
 
-def parseFilenamePageRanges(args):
+def parse_filename_page_ranges(args):
     """
     Given a list of filenames and page ranges, return a list of
     (filename, page_range) pairs.
@@ -133,24 +134,24 @@ def parseFilenamePageRanges(args):
     A filename not followed by a page range indicates all pages of the file.
     """
     pairs = []
-    pdfFilename = None
-    didPageRange = False
+    pdf_filename = None
+    did_page_range = False
 
     for arg in args + [None]:
         if PageRange.valid(arg):
-            if not pdfFilename:
+            if not pdf_filename:
                 raise ValueError(
                     "The first argument must be a filename, not a page range."
                 )
 
-            pairs.append((pdfFilename, PageRange(arg)))
-            didPageRange = True
+            pairs.append((pdf_filename, PageRange(arg)))
+            did_page_range = True
         else:
             # New filename or end of list--do all of the previous file?
-            if pdfFilename and not didPageRange:
-                pairs.append((pdfFilename, PAGE_RANGE_ALL))
+            if pdf_filename and not did_page_range:
+                pairs.append((pdf_filename, PAGE_RANGE_ALL))
 
-            pdfFilename = arg
-            didPageRange = False
+            pdf_filename = arg
+            did_page_range = False
 
     return pairs

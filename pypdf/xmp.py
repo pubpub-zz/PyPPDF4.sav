@@ -1,10 +1,17 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+# vim: sw=4:expandtab:foldmethod=marker
+"""
+TODO : documentation
+"""
+
 import datetime
 import decimal
 import re
 from xml.dom.minidom import parseString
 
-from .generic import PdfObject
-from .utils import pypdfUnicode
+from .generic import PdfObject                      #pylint: disable=relative-beyond-top-level
+from .utils import pypdfUnicode                     #pylint: disable=relative-beyond-top-level
 
 RDF_NAMESPACE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 DC_NAMESPACE = "http://purl.org/dc/elements/1.1/"
@@ -62,15 +69,18 @@ class XmpInformation(PdfObject):
 
     def __init__(self, stream):
         self.stream = stream
-        docRoot = parseString(self.stream.getData())
-        self.rdfRoot = docRoot.getElementsByTagNameNS(RDF_NAMESPACE, "RDF")[0]
+        doc_root = parseString(self.stream.get_data())
+        self.rdf_root = doc_root.getElementsByTagNameNS(RDF_NAMESPACE, "RDF")[0]
+        self._custom_properties = {}
         self.cache = {}
 
-    def writeToStream(self, stream, encryption_key):
+    def writeToStream(self, stream, encryption_key):                #pylint: too hudge change for the moment disable=invalid-name
+        """ TODO : documentation """
         self.stream.writeToStream(stream, encryption_key)
 
-    def getElement(self, aboutUri, namespace, name):
-        for desc in self.rdfRoot.getElementsByTagNameNS(RDF_NAMESPACE, "Description"):
+    def getElement(self, aboutUri, namespace, name):                #pylint: too hudge change for the moment disable=invalid-name
+        """ TODO : documentation """
+        for desc in self.rdf_root.getElementsByTagNameNS(RDF_NAMESPACE, "Description"):
             if desc.getAttributeNS(RDF_NAMESPACE, "about") == aboutUri:
                 attr = desc.getAttributeNodeNS(namespace, name)
 
@@ -79,8 +89,9 @@ class XmpInformation(PdfObject):
                 for element in desc.getElementsByTagNameNS(namespace, name):
                     yield element
 
-    def getNodesInNamespace(self, aboutUri, namespace):
-        for desc in self.rdfRoot.getElementsByTagNameNS(RDF_NAMESPACE, "Description"):
+    def getNodesInNamespace(self, aboutUri, namespace):             #pylint: too hudge change for the moment disable=invalid-name
+        """ TODO : documentation """
+        for desc in self.rdf_root.getElementsByTagNameNS(RDF_NAMESPACE, "Description"):
             if desc.getAttributeNS(RDF_NAMESPACE, "about") == aboutUri:
                 for i in range(desc.attributes.length):
                     attr = desc.attributes.item(i)
@@ -91,7 +102,8 @@ class XmpInformation(PdfObject):
                     if child.namespaceURI == namespace:
                         yield child
 
-    def _getText(self, element):
+    @staticmethod
+    def _get_text(element):
         text = ""
 
         for child in element.childNodes:
@@ -100,34 +112,32 @@ class XmpInformation(PdfObject):
 
         return text
 
-    def _converterString(value):
+    def _converter_string(value):     #pylint: disable=no-self-use
         return value
 
-    def _converterDate(value):
-        m = iso8601.match(value)
-        year = int(m.group("year"))
-        month = int(m.group("month") or "1")
-        day = int(m.group("day") or "1")
-        hour = int(m.group("hour") or "0")
-        minute = int(m.group("minute") or "0")
-        second = decimal.Decimal(m.group("second") or "0")
+    def _converter_date(value):       #pylint: disable=no-self-use
+        m__ = iso8601.match(value)
+        year = int(m__.group("year"))
+        month = int(m__.group("month") or "1")
+        day = int(m__.group("day") or "1")
+        hour = int(m__.group("hour") or "0")
+        minute = int(m__.group("minute") or "0")
+        second = decimal.Decimal(m__.group("second") or "0")
         seconds = second.to_integral(decimal.ROUND_FLOOR)
         milliseconds = (second - seconds) * 1000000
-        tzd = m.group("tzd") or "Z"
-        dt = datetime.datetime(year, month, day, hour, minute, seconds, milliseconds)
+        tzd = m__.group("tzd") or "Z"
+        dt_ = datetime.datetime(year, month, day, hour, minute, seconds, milliseconds)
 
         if tzd != "Z":
             tzd_hours, tzd_minutes = [int(x) for x in tzd.split(":")]
             tzd_hours *= -1
             if tzd_hours < 0:
                 tzd_minutes *= -1
-            dt = dt + datetime.timedelta(hours=tzd_hours, minutes=tzd_minutes)
+            dt_ = dt_ + datetime.timedelta(hours=tzd_hours, minutes=tzd_minutes)
 
-        return dt
+        return dt_
 
-    _test_converter_date = staticmethod(_converterDate)
-
-    def _getterBag(namespace, name, converter):
+    def _getter_bag(namespace, name, converter):
         def get(self):
             cached = self.cache.get(namespace, {}).get(name)
             retval = []
@@ -138,10 +148,10 @@ class XmpInformation(PdfObject):
             for element in self.getElement("", namespace, name):
                 bags = element.getElementsByTagNameNS(RDF_NAMESPACE, "Bag")
 
-                if len(bags):
+                if len(bags) > 0:
                     for bag in bags:
                         for item in bag.getElementsByTagNameNS(RDF_NAMESPACE, "li"):
-                            value = self._getText(item)
+                            value = self._get_text(item)    #pylint: acceptable disable=protected-access
                             value = converter(value)
                             retval.append(value)
 
@@ -152,7 +162,7 @@ class XmpInformation(PdfObject):
 
         return get
 
-    def _getterSeq(namespace, name, converter):
+    def _getter_seq(namespace, name, converter):
         def get(self):
             cached = self.cache.get(namespace, {}).get(name)
             retval = []
@@ -163,14 +173,14 @@ class XmpInformation(PdfObject):
             for element in self.getElement("", namespace, name):
                 seqs = element.getElementsByTagNameNS(RDF_NAMESPACE, "Seq")
 
-                if len(seqs):
+                if len(seqs) > 0:
                     for seq in seqs:
                         for item in seq.getElementsByTagNameNS(RDF_NAMESPACE, "li"):
-                            value = self._getText(item)
+                            value = self._get_text(item)            #pylint: acceptable disable=protected-access
                             value = converter(value)
                             retval.append(value)
                 else:
-                    value = converter(self._getText(element))
+                    value = converter(self._get_text(element))      #pylint: acceptable disable=protected-access
                     retval.append(value)
 
             ns_cache = self.cache.setdefault(namespace, {})
@@ -180,7 +190,7 @@ class XmpInformation(PdfObject):
 
         return get
 
-    def _getterLangalt(namespace, name, converter):
+    def _getter_langalt(namespace, name, converter):
         def get(self):
             cached = self.cache.get(namespace, {}).get(name)
             retval = {}
@@ -189,14 +199,14 @@ class XmpInformation(PdfObject):
                 return cached
             for element in self.getElement("", namespace, name):
                 alts = element.getElementsByTagNameNS(RDF_NAMESPACE, "Alt")
-                if len(alts):
+                if len(alts) > 0:
                     for alt in alts:
                         for item in alt.getElementsByTagNameNS(RDF_NAMESPACE, "li"):
-                            value = self._getText(item)
+                            value = self._get_text(item)                        #pylint: acceptable disable=protected-access
                             value = converter(value)
                             retval[item.getAttribute("xml:lang")] = value
                 else:
-                    retval["x-default"] = converter(self._getText(element))
+                    retval["x-default"] = converter(self._get_text(element))    #pylint: acceptable disable=protected-access
 
             ns_cache = self.cache.setdefault(namespace, {})
             ns_cache[name] = retval
@@ -205,7 +215,7 @@ class XmpInformation(PdfObject):
 
         return get
 
-    def _getterSingle(namespace, name, converter):
+    def _getter_single(namespace, name, converter):
         def get(self):
             cached = self.cache.get(namespace, {}).get(name)
 
@@ -218,7 +228,7 @@ class XmpInformation(PdfObject):
                 if element.nodeType == element.ATTRIBUTE_NODE:
                     value = element.nodeValue
                 else:
-                    value = self._getText(element)
+                    value = self._get_text(element)                 #pylint: acceptable disable=protected-access
                 break
 
             if value is not None:
@@ -231,111 +241,111 @@ class XmpInformation(PdfObject):
 
         return get
 
-    dc_contributor = property(_getterBag(DC_NAMESPACE, "contributor", _converterString))
+    dc_contributor = property(_getter_bag(DC_NAMESPACE, "contributor", _converter_string))
     """
     Contributors to the resource (other than the authors). An unsorted array of
     names.
     """
 
-    dc_coverage = property(_getterSingle(DC_NAMESPACE, "coverage", _converterString))
+    dc_coverage = property(_getter_single(DC_NAMESPACE, "coverage", _converter_string))
     """
     Text describing the extent or scope of the resource.
     """
 
-    dc_creator = property(_getterSeq(DC_NAMESPACE, "creator", _converterString))
+    dc_creator = property(_getter_seq(DC_NAMESPACE, "creator", _converter_string))
     """
     A sorted array of names of the authors of the resource, listed in order of
     precedence.
     """
 
-    dc_date = property(_getterSeq(DC_NAMESPACE, "date", _converterDate))
+    dc_date = property(_getter_seq(DC_NAMESPACE, "date", _converter_date))
     """
     A sorted array of dates (``datetime.datetime`` instances) of significance
     to the resource.  The dates and times are in UTC.
     """
 
     dc_description = property(
-        _getterLangalt(DC_NAMESPACE, "description", _converterString)
+        _getter_langalt(DC_NAMESPACE, "description", _converter_string)
     )
     """
     A language-keyed dictionary of textual descriptions of the content of the
     resource.
     """
 
-    dc_format = property(_getterSingle(DC_NAMESPACE, "format", _converterString))
+    dc_format = property(_getter_single(DC_NAMESPACE, "format", _converter_string))
     """
     The mime-type of the resource.
     """
 
     dc_identifier = property(
-        _getterSingle(DC_NAMESPACE, "identifier", _converterString)
+        _getter_single(DC_NAMESPACE, "identifier", _converter_string)
     )
     """
     Unique identifier of the resource.
     """
 
-    dc_language = property(_getterBag(DC_NAMESPACE, "language", _converterString))
+    dc_language = property(_getter_bag(DC_NAMESPACE, "language", _converter_string))
     """
     An unordered array specifying the languages used in the resource.
     """
 
-    dc_publisher = property(_getterBag(DC_NAMESPACE, "publisher", _converterString))
+    dc_publisher = property(_getter_bag(DC_NAMESPACE, "publisher", _converter_string))
     """
     An unordered array of publisher names.
     """
 
-    dc_relation = property(_getterBag(DC_NAMESPACE, "relation", _converterString))
+    dc_relation = property(_getter_bag(DC_NAMESPACE, "relation", _converter_string))
     """
     An unordered array of text descriptions of relationships to other
     documents.
     """
 
-    dc_rights = property(_getterLangalt(DC_NAMESPACE, "rights", _converterString))
+    dc_rights = property(_getter_langalt(DC_NAMESPACE, "rights", _converter_string))
     """
     A language-keyed dictionary of textual descriptions of the rights the user
     has to this resource.
     """
 
-    dc_source = property(_getterSingle(DC_NAMESPACE, "source", _converterString))
+    dc_source = property(_getter_single(DC_NAMESPACE, "source", _converter_string))
     """
     Unique identifier of the work from which this resource was derived.
     """
 
-    dc_subject = property(_getterBag(DC_NAMESPACE, "subject", _converterString))
+    dc_subject = property(_getter_bag(DC_NAMESPACE, "subject", _converter_string))
     """
     An unordered array of descriptive phrases or keywrods that specify the
     topic of the content of the resource.
     """
 
-    dc_title = property(_getterLangalt(DC_NAMESPACE, "title", _converterString))
+    dc_title = property(_getter_langalt(DC_NAMESPACE, "title", _converter_string))
     """
     A language-keyed dictionary of the title of the resource.
     """
 
-    dc_type = property(_getterBag(DC_NAMESPACE, "type", _converterString))
+    dc_type = property(_getter_bag(DC_NAMESPACE, "type", _converter_string))
     """
     An unordered array of textual descriptions of the document type.
     """
 
-    pdf_keywords = property(_getterSingle(PDF_NAMESPACE, "Keywords", _converterString))
+    pdf_keywords = property(_getter_single(PDF_NAMESPACE, "Keywords", _converter_string))
     """
     An unformatted text string representing document keywords.
     """
 
     pdf_pdfversion = property(
-        _getterSingle(PDF_NAMESPACE, "PDFVersion", _converterString)
+        _getter_single(PDF_NAMESPACE, "PDFVersion", _converter_string)
     )
     """
     The PDF file version, for example ``1.0``, ``1.3``.
     """
 
-    pdf_producer = property(_getterSingle(PDF_NAMESPACE, "Producer", _converterString))
+    pdf_producer = property(_getter_single(PDF_NAMESPACE, "Producer", _converter_string))
     """
     The name of the tool that created the PDF document.
     """
 
     xmp_createDate = property(
-        _getterSingle(XMP_NAMESPACE, "CreateDate", _converterDate)
+        _getter_single(XMP_NAMESPACE, "CreateDate", _converter_date)
     )
     """
     The date and time the resource was originally created.  The date and time
@@ -343,7 +353,7 @@ class XmpInformation(PdfObject):
     """
 
     xmp_modifyDate = property(
-        _getterSingle(XMP_NAMESPACE, "ModifyDate", _converterDate)
+        _getter_single(XMP_NAMESPACE, "ModifyDate", _converter_date)
     )
     """
     The date and time the resource was last modified.  The date and time are
@@ -351,7 +361,7 @@ class XmpInformation(PdfObject):
     """
 
     xmp_metadataDate = property(
-        _getterSingle(XMP_NAMESPACE, "MetadataDate", _converterDate)
+        _getter_single(XMP_NAMESPACE, "MetadataDate", _converter_date)
     )
     """
     The date and time that any metadata for this resource was last changed. The
@@ -359,21 +369,21 @@ class XmpInformation(PdfObject):
     """
 
     xmp_creatorTool = property(
-        _getterSingle(XMP_NAMESPACE, "CreatorTool", _converterString)
+        _getter_single(XMP_NAMESPACE, "CreatorTool", _converter_string)
     )
     """
     The name of the first known tool used to create the resource.
     """
 
     xmpmm_documentId = property(
-        _getterSingle(XMPMM_NAMESPACE, "DocumentID", _converterString)
+        _getter_single(XMPMM_NAMESPACE, "DocumentID", _converter_string)
     )
     """
     The common identifier for all versions and renditions of this resource.
     """
 
     xmpmm_instanceId = property(
-        _getterSingle(XMPMM_NAMESPACE, "InstanceID", _converterString)
+        _getter_single(XMPMM_NAMESPACE, "InstanceID", _converter_string)
     )
     """
     An identifier for a specific incarnation of a document, updated each time a
@@ -390,9 +400,7 @@ class XmpInformation(PdfObject):
             properties.
         :rtype: dict
         """
-        if not hasattr(self, "_custom_properties"):
-            self._custom_properties = {}
-
+        if len(self._custom_properties) == 0:
             for node in self.getNodesInNamespace("", PDFX_NAMESPACE):
                 key = node.localName
 
@@ -411,7 +419,7 @@ class XmpInformation(PdfObject):
                 if node.nodeType == node.ATTRIBUTE_NODE:
                     value = node.nodeValue
                 else:
-                    value = self._getText(node)
+                    value = self._get_text(node)
                 self._custom_properties[key] = value
 
         return self._custom_properties
