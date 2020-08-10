@@ -80,6 +80,13 @@ class NullObject(PdfObject):
 
         return NullObject()
 
+    def __iter__(self):
+        """ implement iterator """
+        return self
+
+    def __next__(self):
+        """ implement (empty) iterator """
+        raise StopIteration
 
     def clone(self, pdf_dest):                           #pylint: disable=unused-argument,no-self-use
         """ clone object into pdf_dest """
