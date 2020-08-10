@@ -1393,7 +1393,7 @@ class PageObject(DictionaryObject):
     :meth:`getPage()<pypdf.PdfFileReader.getPage>` method of the
     :class:`PdfFileReader<pypdf.PdfFileReader>` class, but it is
     also possible to create an empty page with the
-    :meth:`createBlankPage()<PageObject.createBlankPage>` static method.
+    :meth:`creator_blank_page()<PageObject.creator_blank_page>` static method.
 
     """
 
@@ -1414,7 +1414,7 @@ class PageObject(DictionaryObject):
         return d__
 
     @staticmethod
-    def createBlankPage(pdf=None, width=None, height=None):     #pylint: too hudge change for the moment disable=invalid-name
+    def creator_blank_page(pdf=None, width=None, height=None):     #pylint: too hudge change for the moment disable=invalid-name
         """
         Returns a new blank page.
         If ``width`` or ``height`` is ``None``, try to get the page size from
@@ -1449,8 +1449,9 @@ class PageObject(DictionaryObject):
         )
 
         return page
+    createBlankPage = creator_blank_page
 
-    def rotateClockwise(self, angle):                       #pylint: too hudge change for the moment disable=invalid-name
+    def rotate_clockwise(self, angle):                       #pylint: too hudge change for the moment disable=invalid-name
         """
         Rotates a page clockwise by increments of 90 degrees.
 
@@ -1460,8 +1461,9 @@ class PageObject(DictionaryObject):
         assert angle % 90 == 0
         self._rotate(angle)
         return self
+    rotateClockwise = rotate_clockwise
 
-    def rotateCounterClockwise(self, angle):                #pylint: too hudge change for the moment disable=invalid-name
+    def rotate_counter_clockwise(self, angle):                #pylint: too hudge change for the moment disable=invalid-name
         """
         Rotates a page counter-clockwise by increments of 90 degrees.
 
@@ -1471,6 +1473,7 @@ class PageObject(DictionaryObject):
         assert angle % 90 == 0
         self._rotate(-angle)
         return self
+    rotateCounterClockwise = rotate_counter_clockwise
 
     def _rotate(self, angle):
         rotate_obj = self.get("/Rotate", 0)
@@ -1557,6 +1560,7 @@ class PageObject(DictionaryObject):
         if "/Contents" in self:
             return self["/Contents"].getObject()
         return None
+    getContents = get_contents
 
     def merge_page(self, page2):
         """
@@ -1694,6 +1698,8 @@ class PageObject(DictionaryObject):
             ctm,
             expand,
         )
+    mergeTransformedPage = merge_transformed_page
+
     def merge_scaled_page(self, page2, scale, expand=False):
         """
         This is similar to mergePage, but the stream to be merged is scaled
@@ -1707,6 +1713,7 @@ class PageObject(DictionaryObject):
         """
         # CTM to scale : [ sx 0 0 sy 0 0 ]
         return self.merge_transformed_page(page2, (scale, 0, 0, scale, 0, 0), expand)
+    mergeScaledPage = merge_scaled_page
 
     def merge_rotated_page(self, page2, rotation, expand=False):
         """
@@ -1733,6 +1740,7 @@ class PageObject(DictionaryObject):
             ),
             expand,
         )
+    mergeRotatedPage = merge_rotated_page
 
     def merge_translated_page(self, page2, tx_, ty_, expand=False):
         """
@@ -1747,6 +1755,7 @@ class PageObject(DictionaryObject):
             dimensions of the page to be merged.
         """
         return self.merge_transformed_page(page2, (1, 0, 0, 1, tx_, ty_), expand)
+    mergeTranslatedPage = merge_translated_page
 
     def merge_rotated_translated_page(self, page2, rotation, tx_, ty_, expand=False):           #pylint: defined API disable=too-many-arguments
         """
@@ -1778,6 +1787,7 @@ class PageObject(DictionaryObject):
             (ctm[0][0], ctm[0][1], ctm[1][0], ctm[1][1], ctm[2][0], ctm[2][1]),
             expand,
         )
+    mergeRotatedTranslatedPage = merge_rotated_translated_page
 
     def merge_rotated_scaled_page(self, page2, rotation, scale, expand=False):
         """
@@ -1805,6 +1815,7 @@ class PageObject(DictionaryObject):
             (ctm[0][0], ctm[0][1], ctm[1][0], ctm[1][1], ctm[2][0], ctm[2][1]),
             expand,
         )
+    mergeRotatedScaledPage = merge_rotated_scaled_page
 
     def merge_scaled_translated_page(self, page2, scale, tx_, ty_, expand=False):           #pylint: defined API disable=too-many-arguments
         """
@@ -1829,6 +1840,7 @@ class PageObject(DictionaryObject):
             (ctm[0][0], ctm[0][1], ctm[1][0], ctm[1][1], ctm[2][0], ctm[2][1]),
             expand,
         )
+    mergeScaledTranslatedPage = merge_scaled_translated_page
 
     def merge_rotated_scaled_translated_page(               #pylint: defined API disable=too-many-arguments
             self, page2, rotation, scale, tx_, ty_, expand=False
@@ -1862,6 +1874,7 @@ class PageObject(DictionaryObject):
             (ctm[0][0], ctm[0][1], ctm[1][0], ctm[1][1], ctm[2][0], ctm[2][1]),
             expand,
         )
+    mergeRotatedScaledTranslatedPage = merge_rotated_scaled_translated_page
 
     def add_transformation(self, ctm):
         """
@@ -1878,6 +1891,7 @@ class PageObject(DictionaryObject):
             )
             new_content = PageObject._pushpop_gs(new_content, self.pdf)
             self[NameObject("/Contents")] = new_content
+    addTransformation = add_transformation
 
     def scale(self, sx_, sy_):
         """
@@ -1929,6 +1943,7 @@ class PageObject(DictionaryObject):
         :param float factor: The scaling factor (for both X and Y axis).
         """
         self.scale(factor, factor)
+    scaleBy = scale_by
 
     def scale_to(self, width, height):
         """
@@ -1945,6 +1960,7 @@ class PageObject(DictionaryObject):
             self.mediaBox.get_upperright_y() - self.mediaBox.get_lowerleft_y()
         )
         self.scale(sx_, sy_)
+    scaleTo = scale_to
 
     def compress_content_streams(self):
         """
@@ -1960,6 +1976,7 @@ class PageObject(DictionaryObject):
             if not isinstance(content, ContentStream):
                 content = ContentStream(content, self.pdf)
             self[NameObject("/Contents")] = content.flate_encode()
+    compressContentStreams = compress_content_streams
 
     def extract_text(self):
         """
@@ -2007,6 +2024,7 @@ class PageObject(DictionaryObject):
                 text += "\n"
 
         return text
+    extractText = extract_text
 
 
     media_box = _create_rectangle_accessor("/MediaBox", ())
@@ -2046,26 +2064,6 @@ class PageObject(DictionaryObject):
     default user space units, defining the extent of the page's meaningful
     content as intended by the page's creator.
     """
-
-    #Add the aliases that are respecting the snake not compliant api
-    extractText = extract_text
-    mergeTransformedPage = merge_transformed_page
-    mergeScaledPage = merge_scaled_page
-    mergeRotatedPage = merge_rotated_page
-    mergeTranslatedPage = merge_translated_page
-    mergeRotatedTranslatedPage = merge_rotated_translated_page
-    mergeRotatedScaledPage = merge_rotated_scaled_page
-    mergeScaledTranslatedPage = merge_scaled_translated_page
-    mergeRotatedScaledTranslatedPage = merge_rotated_scaled_translated_page
-    addTransformation = add_transformation
-    scaleBy = scale_by
-    scaleTo = scale_to
-    mediaBox = media_box
-    cropBox = crop_box
-    bleedBox = bleed_box
-    trimBox = trim_box
-    artBox = art_box
-
 
 
 class Field(TreeObject):
