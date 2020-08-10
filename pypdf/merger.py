@@ -60,7 +60,7 @@ class PdfFileMerger(PdfFileWriter):                                 #pylint: too
         self.strict = strict
         self._last_merged_pdf = None
 
-    def merge(self, position, fileobj, bookmark=None, numpages=None, import_bookmarks=True, #pylint: too hudge change for the moment disable=too-many-arguments
+    def merge(self, position, fileobj, bookmark=None, pages=None, import_bookmarks=True, #pylint: too hudge change for the moment disable=too-many-arguments
               prefix_nameddest=""):
         """
         Merges the pages from the given file into the output file at the
@@ -74,7 +74,7 @@ class PdfFileMerger(PdfFileWriter):                                 #pylint: too
         :param str bookmark: Optionally, you may specify a bookmark to be
             applied at the beginning of the included file by supplying the text
             of the bookmark.
-        :param numpages: can be a :ref:`Page Range <page-range>` or a
+        :param pages: can be a :ref:`Page Range <page-range>` or a
             ``(start, stop[, step])`` tuple to merge only the specified range
             of pages from the source document into the output document.
         :param bool import_bookmarks: You may prevent the source document's
@@ -97,15 +97,15 @@ class PdfFileMerger(PdfFileWriter):                                 #pylint: too
 
 
         # Find the range of pages to merge.
-        numpages = (range(fileobj.num_pages) if numpages is None else
-                    range(*numpages.indices(fileobj.num_pages)) if isinstance(numpages, PageRange)
-                    else eval(numpages) if isinstance(numpages, str)
-                    else numpages if isinstance(numpages, tuple)
-                    else None)
-        assert numpages is not None, TypeError('"numpages" not good type')
+        pages = (range(fileobj.num_pages) if pages is None else
+                 range(*pages.indices(fileobj.num_pages)) if isinstance(pages, PageRange)
+                 else eval(pages) if isinstance(pages, str)
+                 else pages if isinstance(pages, tuple)
+                 else None)
+        assert pages is not None, TypeError('"pages" not good type')
 
         srcpages = {}
-        for i__, p__ in enumerate(numpages):
+        for i__, p__ in enumerate(pages):
             pp_ = fileobj.pages[p__].indirectRef
             srcpages[pp_.idnum] = self.insert_page(pp_.clone(self), position+i__)
 
@@ -125,7 +125,7 @@ class PdfFileMerger(PdfFileWriter):                                 #pylint: too
                     except AssertionError as e:
                         print(e)
 
-    def append(self, fileobj, bookmark=None, numpages=None, import_bookmarks=True):
+    def append(self, fileobj, bookmark=None, pages=None, import_bookmarks=True):
         """
         Identical to the :meth:`merge()<merge>` method, but assumes you want to
         concatenate all pages onto the end of the file instead of specifying a
@@ -143,7 +143,7 @@ class PdfFileMerger(PdfFileWriter):                                 #pylint: too
         :param bool import_bookmarks: You may prevent the source document's
             bookmarks from being imported by specifying this as ``False``.
         """
-        self.merge(None, fileobj, bookmark, numpages, import_bookmarks)
+        self.merge(None, fileobj, bookmark, pages, import_bookmarks)
 
     def _copy_bookmarks(self, node, bkmark, srcpages):
         """
