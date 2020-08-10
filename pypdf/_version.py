@@ -2,4 +2,4 @@
 """
 PyPDF4 version
 """
-__version__ = '1.27.0PPzz'
+__version__ = '1.27.0PPzz-1'
