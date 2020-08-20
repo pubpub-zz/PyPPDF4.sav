@@ -125,6 +125,24 @@ class PdfDocument(PdfBaseDocument):                              #pylint: for Py
         return ref
     getIndirectObject = get_indirect_object
 
+    def get_permissions(self):
+        """ return permissions as an integer(negative)"""
+        return  self._encrypt["/P"]
+
+    def decode_permissions(self):
+        """ return permissions as a readable string"""
+        _p = ~ self.get_permissions()
+        permissions = ""
+        permissions += "can_print_high_res," if (_p & (1<<2)) == 0 and (_p & (1<<11)) == 0 else ""
+        permissions += "can_print_low_res," if (_p & (1<<2)) == 0 and (_p & (1<<11)) != 0 else ""
+        permissions += "can_modify," if (_p & (1<<3)) == 0 else ""
+        permissions += "can_copy," if (_p & (1<<4)) == 0 else ""
+        permissions += "can_annotate," if (_p & (1<<5)) == 0 else ""
+        permissions += "can_fill," if (_p & (1<<8)) == 0 else ""
+        permissions += "can_extract," if (_p & (1<<9)) == 0 else ""
+        permissions += "can_assemble," if (_p & (1<<10)) == 0 else ""
+        return permissions[:-1] # to remove last comma
+
     def get_document_info(self):
         """
         Retrieves the PDF file's document information dictionary, if it exists.

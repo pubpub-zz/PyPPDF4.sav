@@ -148,6 +148,14 @@ class PdfFileReader(PdfDocument):                                               
         except KeyError:
             self._info = None
 
+    @property
+    def _encrypt(self):
+        """return encrypt dictionnary in a similar manner as writer"""
+        try:
+            return self._trailer["/Encrypt"]
+        except KeyError:
+            return {"/P":-1}    #it is not a PDF to be able to distiguish it....
+
     def __repr__(self):
         return (
             "<%s.%s isClosed=%s, _filepath=%s, _stream=%s, strict=%s, "

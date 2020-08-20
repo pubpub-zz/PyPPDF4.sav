@@ -650,7 +650,9 @@ class PdfFileWriter(PdfDocument):
                 after_page_append(self.get_page(i__))
     cloneDocumentFromReader = clone_document_from_reader
 
-    def encrypt(self, userPwd, ownerPwd=None, use128bits=True):             #pylint: too hudge change for the moment disable=invalid-name
+    def encrypt(self, user_pwd, owner_pwd=None, use128bits=True, permits=None,             #pylint: too hudge change for the moment disable=invalid-name
+                can_print=True, can_modify=True, can_copy=True, can_annotate=True,
+                can_fill=True, can_extract=True, can_assemble=True, print_fullquality=True):
         """
         Encrypt this PDF file with the PDF Standard encryption handler.
 
@@ -665,8 +667,8 @@ class PdfFileWriter(PdfDocument):
         """
         # TO-DO Clean this method's code, as it fires up many code linting
         # warnings
-        if ownerPwd is None:
-            ownerPwd = userPwd
+        if owner_pwd is None:
+            owner_pwd = user_pwd
         if use128bits:
             v__ = 2
             rev = 3
@@ -675,18 +677,28 @@ class PdfFileWriter(PdfDocument):
             v__ = 1
             rev = 2
             keylen = int(40 / 8)
-        # Permit everything:
-        p__ = -1
-        o__ = ByteStringObject(_alg33(ownerPwd, userPwd, rev, keylen))
+        # Permit : cf PDF32000 Table 22
+        if permits:
+            p__ = permits
+        else:
+            p__ = -(4 +(0 if can_print else (1<<2))
+                    +(0 if can_modify else (1<<3))
+                    +(0 if can_copy else (1<<4))
+                    +(0 if can_annotate else (1<<5))
+                    +(0 if can_fill else (1<<8))
+                    +(0 if can_extract else (1<<9))
+                    +(0 if can_assemble else (1<<10))
+                    +(0 if print_fullquality else (1<<11)))
+        o__ = ByteStringObject(_alg33(owner_pwd, user_pwd, rev, keylen))
         id_1 = ByteStringObject(md5(by_(repr(time.time()))).digest())
         id_2 = ByteStringObject(md5(by_(repr(random.random()))).digest())
         self._id = ArrayObject((id_1, id_2))
 
         if rev == 2:
-            u__, key = _alg34(userPwd, o__, p__, id_1)
+            u__, key = _alg34(user_pwd, o__, p__, id_1)
         else:
             assert rev == 3
-            u__, key = _alg35(userPwd, rev, keylen, o__, p__, id_1, False)
+            u__, key = _alg35(user_pwd, rev, keylen, o__, p__, id_1, False)
 
         encrypt = DictionaryObject()
         encrypt[NameObject("/Filter")] = NameObject("/Standard")
