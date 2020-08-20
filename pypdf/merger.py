@@ -110,7 +110,7 @@ class PdfFileMerger(PdfFileWriter):                                 #pylint: too
             srcpages[pp_.idnum] = self.insert_page(pp_.clone(self), position+i__)
 
         self.convert_to_bookmarks()
-        bkmark = self.add_bookmark(bookmark, position) if bookmark else None
+        bkmark = self.add_bookmark(bookmark, position) if bookmark else self.get_outlines_root()
 
         if import_bookmarks and "/Outlines" in fileobj.root_object:
             self._copy_bookmarks(fileobj.root_object["/Outlines"], bkmark, srcpages)
@@ -157,6 +157,8 @@ class PdfFileMerger(PdfFileWriter):                                 #pylint: too
         bkmark1 = bkmark # if node does point to the page, we use the parent to attach sub-children
         #if "/Dest" in node:
         try:
+            if "/Type" in node and node["/Type"] == "/Outlines":
+                raise AttributeError  #nothing to do for outlines_root
             if Destination("", node).pageref.idnum in srcpages:
                 bm_ = Bookmark("", node)
                 bkmark1 = self._add_object(Bookmark(bm_.title, bm_.dest.clone(self),

@@ -2193,8 +2193,8 @@ class Destination(TreeObject):
         if isinstance(page_or_dest_or_array, Destination):
             page_or_dest_or_array = page_or_dest_or_array.get_dest_array()
         if isinstance(page_or_dest_or_array, DictionaryObject):
+            pdf = page_or_dest_or_array.rawGet("/Parent").pdf
             if "/A" in page_or_dest_or_array:
-                pdf = page_or_dest_or_array.rawGet("/A").pdf
                 page_or_dest_or_array = page_or_dest_or_array["/A"]
             elif "/Dest" in page_or_dest_or_array:
                 page_or_dest_or_array = page_or_dest_or_array["/Dest"]
