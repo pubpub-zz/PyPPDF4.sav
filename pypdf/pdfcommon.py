@@ -127,7 +127,12 @@ class PdfDocument(PdfBaseDocument):                              #pylint: for Py
 
     def get_permissions(self):
         """ return permissions as an integer(negative)"""
-        return  self._encrypt["/P"]
+        e=self._encrypt
+        if e is None:
+            return -1
+        if isinstance(e,IndirectObject):
+            e=e.getObject()
+        return e["/P"]
 
     def decode_permissions(self):
         """ return permissions as a readable string"""
