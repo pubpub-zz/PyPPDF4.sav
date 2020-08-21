@@ -291,10 +291,9 @@ class PdfFileReader(PdfDocument):                                               
                 if self.strict:
                     raise PdfReadError("Cannot fetch a free object (id, next gen.) = (%d, %d)"
                                        %(ref.idnum, ref.generation))
-                else:
-                    warnings.warn("fetching a free object(%d) => returns NullObject"%ref.idnum,
-                                  PdfReadWarning,)
-                    return NullObject()
+                warnings.warn("fetching a free object(%d) => returns NullObject"%ref.idnum,
+                              PdfReadWarning,)
+                return NullObject()
 
             offset = self._xref_table[ref.generation][ref.idnum][0]
         elif is_xstream:
