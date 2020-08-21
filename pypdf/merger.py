@@ -157,12 +157,13 @@ class PdfFileMerger(PdfFileWriter):                                 #pylint: too
         bkmark1 = bkmark # if node does point to the page, we use the parent to attach sub-children
         #if "/Dest" in node:
         try:
-            if "/Type" in node and node["/Type"] == "/Outlines":
+            if "/Parent" not in node: # Parent is required everywhere but not present in root
                 raise AttributeError  #nothing to do for outlines_root
             if Destination("", node).pageref.idnum in srcpages:
-                bm_ = Bookmark("", node)
+                bm_ = Bookmark("", node)    #only to get the good object/methods with same data
                 bkmark1 = self._add_object(Bookmark(bm_.title, bm_.dest.clone(self),
-                                                    bm_.flag, bm_.color, None, None))
+                                                    bm_.flag, bm_.color, bkmark, None))
+                #import pdb;pdb.set_trace()
                 bkmark.getObject().add_child(bkmark1, self)
         except AttributeError:  # case of the outlines root where
             pass

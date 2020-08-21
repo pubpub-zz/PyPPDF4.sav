@@ -678,16 +678,18 @@ class TreeObject(DictionaryObject):
             next_.get_object()[NameObject("/Prev")] = child
 
         child_object["/Parent"] = pdf.get_reference(self)
-
-        p__ = child_object
-        c__ = abs(p__["/Count"]) if "/Count" in p__ else 1
-
-        pa_ = True
-        while pa_:
-            p__ = p__["/Parent"].getObject()
-            pa_ = "/Parent" in p__
-            c__ += abs(p__["/Count"])
-            p__[NameObject("/Count")] = NumberObject(-c__ if pa_ else c__)
+#       solution with all outlines folded
+        c__ = abs(self["/Count"])+1 if "/Count" in self else 1
+        self[NameObject("/Count")] = NumberObject(-c__)
+##        p__ = child_object
+##        c__ = abs(p__["/Count"]) if "/Count" in p__ else 1
+##        c1_ = c__
+##        pa_ = True
+##        while pa_:
+##            p__ = p__["/Parent"].getObject()
+##            pa_ = "/Parent" in p__
+##            c__ += c1_ #abs(p__["/Count"])
+##            p__[NameObject("/Count")] = NumberObject(-c__ if pa_ else c__)
 
         return child
 
@@ -2533,7 +2535,7 @@ class Bookmark(TreeObject):
         """ write to stream/file """
         stream.write(by_("<<\n"))
         for key in [NameObject(x)
-                    for x in ["/Title", "/Parent", "/First", "/Last", "/Next", "/Prev"]
+                    for x in ["/Title", "/Parent", "/First", "/Last", "/Count", "/Next", "/Prev"]
                     if x in self]:
             key.writeToStream(stream, encryption_key)
             stream.write(by_(" "))

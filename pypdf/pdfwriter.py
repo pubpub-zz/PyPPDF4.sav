@@ -933,7 +933,7 @@ class PdfFileWriter(PdfDocument):
                 _outlines = self._objects[outlines_ref.idnum-1] = new_o
         else:
             _outlines = TreeObject()
-            _outlines.update({})
+            _outlines.update({NameObject("/Type"):NameObject("/Outlines")})
             outlines_ref = self._add_object(_outlines)
             self.root_object[NameObject("/Outlines")] = outlines_ref
 
