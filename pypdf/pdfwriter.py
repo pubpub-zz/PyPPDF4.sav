@@ -765,9 +765,8 @@ class PdfFileWriter(PdfDocument):
                     external_ref_map[data.pdf] = {}
                 if data.generation not in external_ref_map[data.pdf]:
                     external_ref_map[data.pdf][data.generation] = {}
-                external_ref_map[data.pdf][data.generation][
-                    data.idnum
-                ] = IndirectObject(obj_idx + 1, 0, self)
+                external_ref_map[data.pdf][data.generation][data.idnum] = \
+                    IndirectObject(obj_idx + 1, 0, self)
 
         # TO-DO Instance attribute defined outside __init__(). Carefully move
         # it out of here
@@ -1795,37 +1794,67 @@ class PdfFileWriter(PdfDocument):
     addLink = add_link
 
     def add_comment_object(self, page_num, comment, irtSubstitute=None):                 #pylint: too hudge change for the moment disable=invalid-name
-        """ add comment(obj) on page_num(integer) with  irtSubstitute """
+        """ 
+        add comment(obj) on page_num(integer) with  irtSubstitute 
+        irtSubstitute can be set to :
+                an Indirect Object(force substitution),
+                True to clone the object,if required
+                False to remove IRT
+                None do not change the original IRT
+        """
+        comment_i = None
         if isinstance(comment, IndirectObject):
+            comment_i = comment.idnum
             comment = comment.getObject()
         try:
             #remember that irt is in the response
             irt = comment.rawGet("/IRT")
-            if irtSubstitute is not None:
-                irt = irtSubstitute
-            elif irtSubstitute is True:
-                irt = self.get_indirect_object(self._id_translated[irt.idnum])
+            if irtSubstitute is True:
+                irt = irt.clone(self) # if object has been already cloned, it will be returned
             elif irtSubstitute is False:
                 irt = None
+            elif irtSubstitute is not None:
+                irt = irtSubstitute
+
         except KeyError:
             irt = None
-        try:
-            state = comment["/State"]
-        except:                                     #pylint: disable=bare-except
-            state = None
-        rgb = comment["/C"]
-        try:
-            co_ = comment["/Contents"]
-            co_ = co_.decode("unicode_escape")
-        except:                                     #pylint: disable=bare-except
-            pass
-        try:
-            auth = comment["/T"]
-            auth = auth.decode("unicode_escape")
-        except:                                     #pylint: disable=bare-except
-            pass
-        return self.add_comment(page_num, co_, auth, comment["/CreationDate"], irt, state,
-                                comment["/Rect"][1], comment["/Rect"][0], rgb)
+        #if comment.get("/Subtype")=="/Text":
+        #    try:
+        #        state = comment["/State"]
+        #    except:                                     #pylint: disable=bare-except
+        #        state = None
+        #    rgb = comment["/C"]
+        #    try:
+        #        co_ = comment["/Contents"]
+        #        co_ = co_.decode("unicode_escape")
+        #    except:                                     #pylint: disable=bare-except
+        #        pass
+        #    try:
+        #        auth = comment["/T"]
+        #        auth = auth.decode("unicode_escape")
+        #    except:                                     #pylint: disable=bare-except
+        #        pass
+        #    return self.add_comment(page_num, co_, auth, comment["/CreationDate"], irt, state,
+        #                        comment["/Rect"][1], comment["/Rect"][0], rgb)
+        #else:
+        if True: # to keep indentation unchanged
+            co2=DictionaryObject()
+            co2_=self._add_object(co2)
+            if comment_i:
+                self._id_translated[comment_i]=co2_.idnum
+            for k,v in comment.items():
+                if k=="/IRT":
+                    co2.update({NameObject("/IRT") : irt })
+                elif k=="/AP":  #TODO : reintroduce AP field cloning
+                    pass;
+                elif k=="/P":
+                    co2.update({k : self.get_page(page_num,True)})
+                else: #if k=="/ExData":
+                    co2.update({k : v.clone(self)})
+            self.get_page(page_num)["/Annots"].append(co2_)
+            return co2_
+                
+                    
     addCommentObject = add_comment_object
 
     def add_comment(self, page_num, text, author="Unindentified", creation_date=None, irt=None,
@@ -1882,21 +1911,33 @@ class PdfFileWriter(PdfDocument):
         onto the designated page
         """
         page = page.getObject()
+        try:
+            mem_translation = self._id_translated[page.idnum]
+        except:
+            mem_translation = None
+        self._id_translated[page.idnum]=self.getPage(page_num,True).idnum # we set translation to this page
         ret = []
         tr_ = {}
         try:
             for c__ in page["/Annots"]:
                 co_ = c__.getObject()
-                if co_["/Subtype"] == "/Text":
+                if co_["/Subtype"] in ["/Text", "/FreeText", "/Line", "/Square", "/Circle", "/Polygon",
+                              "/PolyLine", "/Highlight", "/Underline", "/Squiggly", "/StrikeOut",
+                              "/Stamp", "/Caret", "/Ink", "/Popup",]:
                     try:
                         irt = co_.rawGet("/IRT")
                         irt = tr_[irt.idnum]
                     except:                             #pylint: disable=bare-except
                         irt = None
-                    r__ = self.add_comment_object(page_num, co_, irt)
+                    r__ = self.add_comment_object(page_num, c__, True)
                     tr_[c__.idnum] = r__
+                    self._id_translated[c__.idnum] = r__.idnum
                     ret.append(r__)
         finally:
+            if mem_translation:
+                self._id_translated[page.idnum]=mem_translation
+            else:
+                del self._id_translated[page.idnum]
             return ret
     addCommentsFromPage = add_comments_from_page
 

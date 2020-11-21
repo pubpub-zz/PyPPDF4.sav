@@ -267,6 +267,7 @@ class PdfFileReader(PdfDocument):                                               
                 if attr not in pages:
                     pages[attr] = value
             page_obj = PageObject(self, indirect_ref)
+            page_obj.idnum =indirect_ref.idnum          #add to get id_num
             page_obj.update(pages)
             self._flatten_pages.append(page_obj)
         else:

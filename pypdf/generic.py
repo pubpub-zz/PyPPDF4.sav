@@ -212,6 +212,7 @@ class IndirectObject(PdfObject):
     def getObject(self):                 #pylint: too hudge change for the moment disable=invalid-name
         """ return the pointed object """
         return self.pdf.getObject(self).getObject()
+    get_object = getObject
 
     def __repr__(self):
         return "IndirectObject(%r, %r)" % (self.idnum, self.generation)
