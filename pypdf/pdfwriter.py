@@ -173,6 +173,10 @@ class PdfFileWriter(PdfDocument):
             if i__ != j__:
                 warnings.warn("Number of cloned objects is not matching (%d vs %d), may be normal"%
                               (i__, j__))
+        #save idnum in pages 
+        for i in range(self.num_pages):
+            p=self.getPage(i,True)
+            p.getObject().idnum=p.idnum
         self.get_outlines_root()        # in order to change type of "/Outlines"
 
     def reset_cloning(self):
@@ -200,7 +204,7 @@ class PdfFileWriter(PdfDocument):
             assert page.getObject()["/Type"] == "/Page"
             if page.pdf != self:   # ensure the page does not require cloning
                 page = page.clone(self)
-
+        page.getObject().idnum=page.idnum
         pn_ = self._pages.getObject()["/Count"]
         if pn_ == 0:
             pp_ = self._pages
